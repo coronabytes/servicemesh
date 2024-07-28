@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 8.x
+        
+    - name: Build Version
+      id: vars
+      run: echo "::set-output name=VERSION::<Version>${GITHUB_REF#refs/tags/}</Version>"
+      
+    - name: Apply Version
+      uses: jacobtomlinson/gha-find-replace@v2
+      with:
+        find: "<Version>.*<\\/Version>"
+        replace: "${{ steps.vars.outputs.VERSION }}"
+        include: "**/*.csproj"
+        regex: true
+    
+    - name: Build
+      run: dotnet build --configuration Release
+
+    - name: Pack
+      run: dotnet pack --configuration Release
+      
+    - name: Publish
+      run: dotnet nuget push **/*.nupkg --api-key ${{ secrets.NUGET_TOKEN }} --source https://api.nuget.org/v3/index.json

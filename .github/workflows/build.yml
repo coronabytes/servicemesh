@@ -1,0 +1,29 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3  
+    
+    - name: dotnet
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 8.x
+    
+    - name: build
+      run: dotnet build --configuration Release
+      
+    - name: Pack
+      run: dotnet pack --configuration Release
