@@ -1,6 +1,6 @@
 using Core.ServiceMesh;
 using Core.ServiceMesh.SampleApp.Services;
-using Core.ServiceMesh.SampleInterfaces;
+using SampleInterfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 

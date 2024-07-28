@@ -1,9 +1,8 @@
 using Core.ServiceMesh.Abstractions;
-using Core.ServiceMesh.SampleApp.Services;
-using Core.ServiceMesh.SampleInterfaces;
 using Microsoft.AspNetCore.Mvc;
+using SampleInterfaces;
 
-namespace Core.ServiceMesh.SampleApp.Controllers;
+namespace SampleApp.Controllers;
 
 [ApiController]
 [Route("api/dev")]
@@ -16,7 +15,7 @@ public class DevController(IServiceMesh mesh, ISomeService someService) : Contro
         return Ok();
     }
 
-    [HttpPost("broadcast")]
+    [HttpPost("send")]
     public async Task<IActionResult> Broadcast([FromQuery] string message)
     {
         await mesh.SendAsync(new SomeCommand(message));

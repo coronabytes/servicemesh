@@ -3,13 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.10.35027.167
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core.ServiceMesh.SampleApp", "Core.ServiceMesh.SampleApp\Core.ServiceMesh.SampleApp.csproj", "{F4946728-0216-4997-925C-100FDF53F06F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleApp", "SampleApp\SampleApp.csproj", "{F4946728-0216-4997-925C-100FDF53F06F}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core.ServiceMesh", "Core.ServiceMesh\Core.ServiceMesh.csproj", "{C3FBC37C-24D2-42A8-A30E-77EB31E5D1B4}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core.ServiceMesh.Abstractions", "Core.ServiceMesh.Abstractions\Core.ServiceMesh.Abstractions.csproj", "{78C47DE6-A952-4CEF-834F-FECA130A3C30}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core.ServiceMesh.SampleInterfaces", "Core.ServiceMesh.SampleInterfaces\Core.ServiceMesh.SampleInterfaces.csproj", "{C54EB4C1-28CB-47F4-A7D1-533C3D943507}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleInterfaces", "SampleInterfaces\SampleInterfaces.csproj", "{C54EB4C1-28CB-47F4-A7D1-533C3D943507}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

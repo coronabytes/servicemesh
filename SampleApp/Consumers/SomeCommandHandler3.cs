@@ -1,5 +1,5 @@
 ﻿using Core.ServiceMesh.Abstractions;
-using Core.ServiceMesh.SampleInterfaces;
+using SampleInterfaces;
 
 namespace Core.ServiceMesh.SampleApp.Consumers;
 

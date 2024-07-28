@@ -1,6 +1,6 @@
-﻿using Core.ServiceMesh.Abstractions;
-using Core.ServiceMesh.SampleInterfaces;
-using System.Numerics;
+﻿using System.Numerics;
+using Core.ServiceMesh.Abstractions;
+using SampleInterfaces;
 
 namespace Core.ServiceMesh.SampleApp.Services;
 
@@ -24,4 +24,4 @@ public class SomeService(ILogger<SomeService> logger) : ISomeService
         await Task.Delay(100);
         return a + b;
     }
-};
+}

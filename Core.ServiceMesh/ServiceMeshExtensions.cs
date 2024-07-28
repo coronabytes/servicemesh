@@ -2,7 +2,6 @@
 using Core.ServiceMesh.Abstractions;
 using Core.ServiceMesh.Internal;
 using Core.ServiceMesh.Proxy;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Hosting;
