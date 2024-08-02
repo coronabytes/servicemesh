@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Diagnostics;
+using System.Numerics;
 using Core.ServiceMesh.Abstractions;
 using SampleInterfaces;
 
@@ -9,7 +10,10 @@ public class SomeService(ILogger<SomeService> logger) : ISomeService
 {
     public async Task<string> GetSomeString(int a, string b)
     {
+        logger.LogInformation("test log");
+        Activity.Current?.AddEvent(new ActivityEvent("test 1"));
         await Task.Delay(100);
+        Activity.Current?.AddEvent(new ActivityEvent("test 2"));
         return b + " " + a;
     }
 

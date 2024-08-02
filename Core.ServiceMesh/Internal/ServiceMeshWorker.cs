@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics;
+using System.Reflection;
 using System.Threading.Channels;
 using Core.ServiceMesh.Abstractions;
 using Core.ServiceMesh.Proxy;
@@ -8,6 +9,8 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
+using OpenTelemetry;
+using OpenTelemetry.Context.Propagation;
 
 namespace Core.ServiceMesh.Internal;
 
@@ -21,6 +24,8 @@ internal class ServiceMeshWorker(
     private Channel<(NatsMsg<byte[]>, ConsumerRegistration)>? _broadcastChannel;
     private Channel<(NatsMsg<byte[]>, ServiceRegistration)>? _serviceChannel;
     private Channel<(NatsJSMsg<byte[]>, ConsumerRegistration)>? _streamChannel;
+
+    private readonly ActivitySource activitySource = new("core.servicemesh");
 
     public T CreateProxy<T>() where T : class
     {
@@ -201,8 +206,22 @@ internal class ServiceMeshWorker(
         {
             var (msg, reg) = tuple;
 
+            var parentContext = Propagators.DefaultTextMapPropagator.Extract(default, msg.Headers, (headers, key) =>
+            {
+                if (headers.TryGetValue(key, out var value))
+                    return [value[0]];
+
+                return Array.Empty<string>();
+            });
+            Baggage.Current = parentContext.Baggage;
+
+            using var activity = activitySource.StartActivity("NATS", ActivityKind.Server, parentContext.ActivityContext);
+
             var invocation = (ServiceInvocation)options.Deserialize(msg.Data!, typeof(ServiceInvocation), true)!;
             var signatures = invocation.Signature.Select(options.ResolveType).ToArray();
+
+            if (activity != null)
+                activity.DisplayName = $"{invocation.Service}.{invocation.Method}";
 
             var args = new object[signatures.Length];
 
@@ -297,11 +316,23 @@ internal class ServiceMeshWorker(
 
         var body = options.Serialize(call, true);
 
+        var headers = new NatsHeaders();
+
+        if (Activity.Current != null)
+            Propagators.DefaultTextMapPropagator.Inject(
+            new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
+            (h, key, value) => { h[key] = value; });
+
+        using var activity = activitySource.StartActivity("NATS", ActivityKind.Client, Activity.Current.Context);
+
+        if (activity != null)
+            activity.DisplayName = $"{call.Service}.{call.Method}";
+
         var res = await nats.RequestAsync<byte[], byte[]>(subject,
             body, replyOpts: new NatsSubOpts
             {
                 Timeout = TimeSpan.FromSeconds(30)
-            });
+            }, headers: headers);
 
         res.EnsureSuccess();
 
@@ -324,11 +355,18 @@ internal class ServiceMeshWorker(
 
         var body = options.Serialize(call, true);
 
+        var headers = new NatsHeaders();
+
+        if (Activity.Current != null)
+            Propagators.DefaultTextMapPropagator.Inject(
+                new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
+                (h, key, value) => { h[key] = value; });
+
         var res = await nats.RequestAsync<byte[], byte[]>(subject,
             body, replyOpts: new NatsSubOpts
             {
                 Timeout = TimeSpan.FromSeconds(30)
-            });
+            }, headers: headers);
 
         res.EnsureSuccess();
     }
