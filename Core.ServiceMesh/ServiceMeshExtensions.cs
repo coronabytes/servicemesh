@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Runtime.InteropServices.JavaScript;
 using Core.ServiceMesh.Abstractions;
 using Core.ServiceMesh.Internal;
 using Core.ServiceMesh.Proxy;
@@ -109,11 +110,11 @@ public static class ServiceMeshExtensions
             }
         }
 
-        foreach (var handler in asms.SelectMany(asm => asm.GetTypes().Where(x => x.GetInterfaces()
+        foreach (var consumer in asms.SelectMany(asm => asm.GetTypes().Where(x => x.GetInterfaces()
                      .Any(y => y.IsGenericType && y.GetGenericTypeDefinition() == typeof(IConsumer<>))).ToList()))
         {
-            var durableAttribute = handler.GetCustomAttribute<DurableConsumerAttribute>();
-            var transientAttribute = handler.GetCustomAttribute<TransientConsumerAttribute>();
+            var durableAttribute = consumer.GetCustomAttribute<DurableConsumerAttribute>();
+            var transientAttribute = consumer.GetCustomAttribute<TransientConsumerAttribute>();
 
             if (durableAttribute != null && transientAttribute != null)
                 continue;
@@ -121,26 +122,43 @@ public static class ServiceMeshExtensions
             if (durableAttribute == null && transientAttribute == null)
                 continue;
 
-            var itype = handler.GetInterfaces().SingleOrDefault();
-            var msgType = itype.GetGenericArguments()[0];
+            var ifaces = consumer.GetInterfaces()
+                .Where(y => y.IsGenericType && y.GetGenericTypeDefinition() == typeof(IConsumer<>)).ToList();
 
-            var obsolete = handler.GetCustomAttribute<ObsoleteAttribute>() != null;
+            if (ifaces.Count > 1)
+            {
+                ifaces.ToArray();
+            }
+
+            var map = new Dictionary<Type, MethodInfo>();
+
+            foreach (var iface in ifaces)
+            {
+                var msgType = iface.GetGenericArguments()[0];
+
+                var method = consumer.GetMethod(nameof(IConsumer<object>.ConsumeAsync), 
+                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy, 
+                    [msgType, typeof(CancellationToken)]);
+
+                map.Add(msgType, method!);
+            }
+
+            var obsolete = consumer.GetCustomAttribute<ObsoleteAttribute>() != null;
 
             if (!obsolete)
-                builder.Services.Add(new ServiceDescriptor(handler, handler, ServiceLifetime.Scoped));
+                builder.Services.Add(new ServiceDescriptor(consumer, consumer, ServiceLifetime.Scoped));
 
             Consumers.Add(new ConsumerRegistration
             {
                 IsDurable = durableAttribute != null,
-                Name = applyPrefix(durableAttribute?.Name ?? string.Empty),
-                Subject = applyPrefix(options.ResolveSubject(msgType)),
-                Stream = applyPrefix(durableAttribute?.Stream ?? string.Empty),
+                Name = applyPrefix(durableAttribute?.Name ?? string.Empty)!,
+                Subjects = map.Select(x => applyPrefix(options.ResolveSubject(x.Key))!).ToArray(),
+                Stream = applyPrefix(durableAttribute?.Stream ?? string.Empty)!,
                 QueueGroup = applyPrefix(transientAttribute?.QueueGroup),
-                Type = msgType,
-                Consumer = handler,
+                Consumer = consumer,
                 Obsolete = obsolete,
-                Method = handler.GetMethod(nameof(IConsumer<object>
-                    .ConsumeAsync))!
+                Methods = map.ToDictionary(x=> applyPrefix(options.ResolveSubject(x.Key))!, 
+                    x => (x.Value, x.Key))
             });
         }
 

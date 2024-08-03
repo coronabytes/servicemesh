@@ -3,7 +3,7 @@ using SampleInterfaces;
 
 namespace SampleWorker.Consumers;
 
-[DurableConsumer("SomeCommandHandler2", "default")]
+[DurableConsumer("SomeCommandHandler2", Stream = "default")]
 [Obsolete] // deregister this consumer
 public class SomeCommandHandler2(ILogger<SomeCommandHandler2> logger) : IConsumer<SomeCommand>
 {

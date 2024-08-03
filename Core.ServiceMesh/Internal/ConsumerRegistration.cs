@@ -6,11 +6,10 @@ internal class ConsumerRegistration
 {
     public string Name { get; init; }
     public bool IsDurable { get; init; }
-    public string Subject { get; init; }
+    public string[] Subjects { get; init; }
     public string Stream { get; init; }
     public string? QueueGroup { get; init; }
-    public Type Type { get; init; }
     public Type Consumer { get; init; }
-    public MethodInfo Method { get; init; }
+    public Dictionary<string, (MethodInfo Method, Type MessageType)> Methods { get; init; }
     public bool Obsolete { get; init; }
 }

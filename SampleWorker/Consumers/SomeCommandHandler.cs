@@ -3,7 +3,7 @@ using SampleInterfaces;
 
 namespace SampleWorker.Consumers;
 
-[DurableConsumer("SomeCommandHandler", "default")]
+[DurableConsumer("SomeCommandHandler", Stream = "default")]
 public class SomeCommandHandler(ILogger<SomeCommandHandler> logger) : IConsumer<SomeCommand>
 {
     public ValueTask ConsumeAsync(SomeCommand message, CancellationToken token)

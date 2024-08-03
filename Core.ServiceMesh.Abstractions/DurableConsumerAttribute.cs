@@ -38,7 +38,8 @@ public class DurableConsumerAttribute(string name) : Attribute
 {
     public string Name => name;
     public string? Stream { get; init; }
-    public long? MaxDeliver { get; init; }
-    public long? MaxAckPending { get; init; }
+    public long MaxDeliver { get; init; } = -1;
+    public long MaxAckPending { get; init; } = -1;
+    public long MaxAckWait { get; set; } = 60*5;
     public DeliverPolicy DeliverPolicy { get; init; } = DeliverPolicy.All;
 }
