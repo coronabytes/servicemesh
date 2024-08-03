@@ -8,6 +8,7 @@ internal class ConsumerRegistration
     public bool IsDurable { get; init; }
     public string Subject { get; init; }
     public string Stream { get; init; }
+    public string? QueueGroup { get; init; }
     public Type Type { get; init; }
     public Type Consumer { get; init; }
     public MethodInfo Method { get; init; }

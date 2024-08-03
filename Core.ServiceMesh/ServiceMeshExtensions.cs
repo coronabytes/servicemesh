@@ -19,10 +19,7 @@ public static class ServiceMeshExtensions
         var options = new ServiceMeshOptions();
         configure(options);
 
-        builder.Services.AddNats(1, opts => opts with
-        {
-            Url = options.Nats
-        });
+        builder.Services.AddNats(options.NatsPoolSize, opts => options.ConfigureNats(opts));
 
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton<ServiceMeshWorker>();
@@ -34,10 +31,14 @@ public static class ServiceMeshExtensions
 
         var interfaces = new List<Type>();
 
-        var applyPrefix = (string a) =>
+        var applyPrefix = (string? a) =>
         {
+            if (a == null)
+                return null;
+
             if (options.Prefix != null)
                 return $"{options.Prefix}-{a}";
+
             return a;
         };
 
@@ -70,18 +71,41 @@ public static class ServiceMeshExtensions
             }
         }
 
-        if (options.RegisterServiceInterface != ServiceRegisterMode.None)
+        if (options.InterfaceMode != ServiceInterfaceMode.None)
         {
             foreach (var serviceInterface in interfaces)
             {
                 var impl = Services.FirstOrDefault(x => x.InterfaceType == serviceInterface);
 
-                if (impl == null || options.RegisterServiceInterface == ServiceRegisterMode.ForceProxy)
+                if (impl == null)
+                {
                     builder.Services.AddSingleton(serviceInterface,
-                        DispatchProxyAsync.Create(serviceInterface, typeof(MeshDispatchProxy)));
+                        DispatchProxyAsync.Create(serviceInterface, typeof(RemoteDispatchProxy)));
+                }
                 else
-                    builder.Services.Add(new ServiceDescriptor(serviceInterface, impl.ImplementationType,
-                        ServiceLifetime.Scoped));
+                {
+                    if (options.InterfaceMode == ServiceInterfaceMode.ForceRemote)
+                        builder.Services.AddSingleton(serviceInterface,
+                            DispatchProxyAsync.Create(serviceInterface, typeof(RemoteDispatchProxy)));
+                    else if (options.InterfaceMode == ServiceInterfaceMode.AutoTrace)
+                    {
+                        builder.Services.AddSingleton(serviceInterface, (sp) =>
+                        {
+                            var proxy = DispatchProxyAsync.Create(serviceInterface, typeof(TraceDispatchProxy));
+
+                            if (proxy is TraceDispatchProxy traceProxy)
+                            {
+                                traceProxy.ServiceProvider = sp;
+                                traceProxy.ImplementationType = impl.ImplementationType;
+                            }
+
+                            return proxy;
+                        });
+                    }
+                    else
+                        builder.Services.Add(new ServiceDescriptor(serviceInterface, impl.ImplementationType,
+                            ServiceLifetime.Scoped));
+                }
             }
         }
 
@@ -110,7 +134,8 @@ public static class ServiceMeshExtensions
                 IsDurable = durableAttribute != null,
                 Name = applyPrefix(durableAttribute?.Name ?? string.Empty),
                 Subject = applyPrefix(options.ResolveSubject(msgType)),
-                Stream = applyPrefix(durableAttribute?.Stream ?? transientAttribute?.QueueGroup ?? string.Empty),
+                Stream = applyPrefix(durableAttribute?.Stream ?? string.Empty),
+                QueueGroup = applyPrefix(transientAttribute?.QueueGroup),
                 Type = msgType,
                 Consumer = handler,
                 Obsolete = obsolete,

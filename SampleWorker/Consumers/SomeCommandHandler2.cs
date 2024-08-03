@@ -1,7 +1,7 @@
 ﻿using Core.ServiceMesh.Abstractions;
 using SampleInterfaces;
 
-namespace SampleApp.Consumers;
+namespace SampleWorker.Consumers;
 
 [DurableConsumer("SomeCommandHandler2", "default")]
 [Obsolete] // deregister this consumer

@@ -25,11 +25,11 @@ internal class ServiceMeshWorker(
     private Channel<(NatsMsg<byte[]>, ServiceRegistration)>? _serviceChannel;
     private Channel<(NatsJSMsg<byte[]>, ConsumerRegistration)>? _streamChannel;
 
-    private readonly ActivitySource activitySource = new("core.servicemesh");
+    internal static readonly ActivitySource ActivitySource = new("core.servicemesh");
 
     public T CreateProxy<T>() where T : class
     {
-        return DispatchProxyAsync.Create<T, MeshDispatchProxy>();
+        return DispatchProxyAsync.Create<T, RemoteDispatchProxy>();
     }
 
     public async ValueTask PublishAsync(object message, int retry = 3, TimeSpan? retryWait = null)
@@ -37,12 +37,24 @@ internal class ServiceMeshWorker(
         var subject = ApplyPrefix(options.ResolveSubject(message.GetType()));
         var data = options.Serialize(message, true);
 
+        var headers = new NatsHeaders();
+
+        if (Activity.Current != null)
+            Propagators.DefaultTextMapPropagator.Inject(
+                new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
+                (h, key, value) => { h[key] = value; });
+
+        using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Producer, Activity.Current.Context);
+
+        if (activity != null)
+            activity.DisplayName = subject;
+
         var res = await _jetStream.PublishAsync(subject, data, opts: new NatsJSPubOpts
         {
             MsgId = Guid.NewGuid().ToString("N"),
             RetryAttempts = retry,
             RetryWaitBetweenAttempts = retryWait ?? TimeSpan.FromSeconds(30)
-        });
+        }, headers: headers);
 
         res.EnsureSuccess();
     }
@@ -52,12 +64,24 @@ internal class ServiceMeshWorker(
         var subject = ApplyPrefix(options.ResolveSubject(message.GetType()));
         var data = options.Serialize(message, true);
 
-        await nats.PublishAsync(subject, data);
+        var headers = new NatsHeaders();
+
+        if (Activity.Current != null)
+            Propagators.DefaultTextMapPropagator.Inject(
+                new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
+                (h, key, value) => { h[key] = value; });
+
+        using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Producer, Activity.Current.Context);
+
+        if (activity != null)
+            activity.DisplayName = subject;
+
+        await nats.PublishAsync(subject, data, headers: headers);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        MeshDispatchProxy.Worker = this;
+        RemoteDispatchProxy.Worker = this;
 
         _streamChannel = Channel.CreateBounded<(NatsJSMsg<byte[]>, ConsumerRegistration)>(10);
         _broadcastChannel = Channel.CreateBounded<(NatsMsg<byte[]>, ConsumerRegistration)>(10);
@@ -76,21 +100,36 @@ internal class ServiceMeshWorker(
         {
             var subjects = stream.Select(x => x.Subject).Distinct().ToList();
 
-            await _jetStream.CreateStreamAsync(new StreamConfig(stream.Key, subjects)
+            try
             {
-                Storage = StreamConfigStorage.File,
-                DuplicateWindow = TimeSpan.FromMinutes(10),
-                MaxAge = TimeSpan.FromDays(14)
-            }, stoppingToken);
+                var streamInfo = await _jetStream.GetStreamAsync(stream.Key);
+
+                var currentStreamConfig = streamInfo.Info.Config;
+                var mergedSubjects = (currentStreamConfig.Subjects ?? []).ToHashSet();
+                mergedSubjects.UnionWith(subjects);
+
+                var newStreamConfig = new StreamConfig(stream.Key, mergedSubjects.ToList());
+                options.ConfigureStream(stream.Key, newStreamConfig);
+
+                if (mergedSubjects.Count != subjects.Count)
+                {
+                    await _jetStream.UpdateStreamAsync(newStreamConfig, stoppingToken);
+                }
+            }
+            catch (Exception)
+            {
+                var newStreamConfig = new StreamConfig(stream.Key, subjects)
+                {
+                    Storage = StreamConfigStorage.File,
+                    DuplicateWindow = TimeSpan.FromMinutes(10),
+                    MaxAge = TimeSpan.FromDays(14)
+                };
+
+                await _jetStream.CreateStreamAsync(newStreamConfig, stoppingToken);
+            }
         }
 
-        var consumeOpts = new NatsJSConsumeOpts
-        {
-            MaxMsgs = 10,
-            MaxBytes = null,
-            Expires = TimeSpan.FromSeconds(10),
-            IdleHeartbeat = TimeSpan.FromSeconds(5)
-        };
+       
 
         foreach (var durableConsumer in ServiceMeshExtensions.Consumers.Where(x => x.IsDurable))
             if (durableConsumer.Obsolete)
@@ -122,14 +161,28 @@ internal class ServiceMeshWorker(
             }
             else
             {
-                var con = await _jetStream.CreateOrUpdateConsumerAsync(durableConsumer.Stream, new ConsumerConfig
+                var newConsumerConfig = new ConsumerConfig
                 {
                     Name = durableConsumer.Name,
                     DurableName = durableConsumer.Name,
                     AckPolicy = ConsumerConfigAckPolicy.Explicit,
                     MaxDeliver = 3,
-                    MaxAckPending = 8
-                }, stoppingToken).ConfigureAwait(false);
+                    MaxAckPending = 8,
+                    FilterSubject = durableConsumer.Subject,
+                    DeliverPolicy = ConsumerConfigDeliverPolicy.New
+                };
+
+                var consumeOpts = new NatsJSConsumeOpts
+                {
+                    MaxMsgs = 10,
+                    MaxBytes = null,
+                    Expires = TimeSpan.FromSeconds(10),
+                    IdleHeartbeat = TimeSpan.FromSeconds(5)
+                };
+
+                options.ConfigureConsumer(durableConsumer.Name, newConsumerConfig, consumeOpts);
+
+                var con = await _jetStream.CreateOrUpdateConsumerAsync(durableConsumer.Stream, newConsumerConfig, stoppingToken).ConfigureAwait(false);
 
                 tasks.Add(StreamListener(con, consumeOpts, durableConsumer, stoppingToken));
             }
@@ -173,7 +226,7 @@ internal class ServiceMeshWorker(
         CancellationToken stoppingToken)
     {
         await foreach
-            (var msg in nats.SubscribeAsync<byte[]>(reg.Subject, reg.Stream, cancellationToken: stoppingToken))
+            (var msg in nats.SubscribeAsync<byte[]>(reg.Subject, reg.QueueGroup, cancellationToken: stoppingToken))
             await _broadcastChannel!.Writer.WriteAsync((msg, reg), stoppingToken);
     }
 
@@ -182,6 +235,20 @@ internal class ServiceMeshWorker(
         await foreach (var tuple in _broadcastChannel!.Reader.ReadAllAsync(stoppingToken))
         {
             var (msg, consumer) = tuple;
+
+            var parentContext = Propagators.DefaultTextMapPropagator.Extract(default, msg.Headers, (headers, key) =>
+            {
+                if (headers.TryGetValue(key, out var value))
+                    return [value[0]];
+
+                return Array.Empty<string>();
+            });
+            Baggage.Current = parentContext.Baggage;
+
+            using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Consumer, parentContext.ActivityContext);
+
+            if (activity != null)
+                activity.DisplayName = msg.Subject;
 
             try
             {
@@ -215,7 +282,7 @@ internal class ServiceMeshWorker(
             });
             Baggage.Current = parentContext.Baggage;
 
-            using var activity = activitySource.StartActivity("NATS", ActivityKind.Server, parentContext.ActivityContext);
+            using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Server, parentContext.ActivityContext);
 
             var invocation = (ServiceInvocation)options.Deserialize(msg.Data!, typeof(ServiceInvocation), true)!;
             var signatures = invocation.Signature.Select(options.ResolveType).ToArray();
@@ -272,6 +339,20 @@ internal class ServiceMeshWorker(
         {
             var (msg, consumer) = tuple;
 
+            var parentContext = Propagators.DefaultTextMapPropagator.Extract(default, msg.Headers, (headers, key) =>
+            {
+                if (headers.TryGetValue(key, out var value))
+                    return [value[0]];
+
+                return Array.Empty<string>();
+            });
+            Baggage.Current = parentContext.Baggage;
+
+            using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Consumer, parentContext.ActivityContext);
+
+            if (activity != null)
+                activity.DisplayName = msg.Subject;
+
             try
             {
                 await using var scope = serviceProvider.CreateAsyncScope();
@@ -318,12 +399,12 @@ internal class ServiceMeshWorker(
 
         var headers = new NatsHeaders();
 
-        if (Activity.Current != null)
+        var activityContext = Activity.Current?.Context ?? default;
             Propagators.DefaultTextMapPropagator.Inject(
-            new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
+            new PropagationContext(activityContext, Baggage.Current), headers,
             (h, key, value) => { h[key] = value; });
 
-        using var activity = activitySource.StartActivity("NATS", ActivityKind.Client, Activity.Current.Context);
+        using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Client, activityContext);
 
         if (activity != null)
             activity.DisplayName = $"{call.Service}.{call.Method}";
@@ -357,10 +438,16 @@ internal class ServiceMeshWorker(
 
         var headers = new NatsHeaders();
 
-        if (Activity.Current != null)
-            Propagators.DefaultTextMapPropagator.Inject(
-                new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
-                (h, key, value) => { h[key] = value; });
+        var activityContext = Activity.Current?.Context ?? default;
+
+        Propagators.DefaultTextMapPropagator.Inject(
+            new PropagationContext(activityContext, Baggage.Current), headers,
+            (h, key, value) => { h[key] = value; });
+
+        using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Client, activityContext);
+
+        if (activity != null)
+            activity.DisplayName = $"{call.Service}.{call.Method}";
 
         var res = await nats.RequestAsync<byte[], byte[]>(subject,
             body, replyOpts: new NatsSubOpts

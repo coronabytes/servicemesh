@@ -3,6 +3,9 @@ using System.Reflection;
 using System.Text.Json;
 using Core.ServiceMesh.Abstractions;
 using K4os.Compression.LZ4;
+using NATS.Client.Core;
+using NATS.Client.JetStream;
+using NATS.Client.JetStream.Models;
 
 namespace Core.ServiceMesh;
 
@@ -14,17 +17,18 @@ public class ServiceMeshOptions
     /// </summary>
     public string? Prefix = null;
 
- /// <summary>
-    ///     nats connection string
-    ///     default: nats://localhost:4222
-    /// </summary>
-    public string Nats { get; set; } = "nats://localhost:4222";
+    public int NatsPoolSize { get; set; } = 1;
+
+    public Func<NatsOpts, NatsOpts> ConfigureNats { get; set; } = opts => opts with
+    {
+        Url = "nats://localhost:4222"
+    };
 
     /// <summary>
     ///     controls how service interface are registered in the service collection
     ///     default: auto
     /// </summary>
-    public ServiceRegisterMode RegisterServiceInterface { get; set; } = ServiceRegisterMode.Auto;
+    public ServiceInterfaceMode InterfaceMode { get; set; } = ServiceInterfaceMode.Auto;
 
     /// <summary>
     ///     assemblies to scan for services and consumers
@@ -84,4 +88,8 @@ public class ServiceMeshOptions
     ///     default:  max(1, cpu)
     /// </summary>
     public int ServiceWorkers { get; set; } = Math.Max(1, Environment.ProcessorCount);
+
+    public Action<string, StreamConfig> ConfigureStream = (s, config) => { };
+
+    public Action<string, ConsumerConfig, NatsJSConsumeOpts> ConfigureConsumer = (s, config, opts) => { };
 }

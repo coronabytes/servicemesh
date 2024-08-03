@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-SampleWorker-622a38cf-2151-42c2-845a-d422b6dfa392</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Core.Observability" Version="0.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core.ServiceMesh\Core.ServiceMesh.csproj" />
+    <ProjectReference Include="..\SampleInterfaces\SampleInterfaces.csproj" />
+  </ItemGroup>
+</Project>

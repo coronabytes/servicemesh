@@ -1,15 +1,12 @@
 ﻿{
   "$schema": "http://json.schemastore.org/launchsettings.json",
   "profiles": {
-    "https": {
+    "SampleWorker": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "launchBrowser": false,
-      "launchUrl": "swagger",
-      "applicationUrl": "https://localhost:7064",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "OTEL_SERVICE_NAME": "meshapp",
+        "DOTNET_ENVIRONMENT": "Development",
+        "OTEL_SERVICE_NAME": "meshworker",
         "OTEL_RESOURCE_ATTRIBUTES": "service.namespace=core,environment.name=dev",
         "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4317",
         "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc"

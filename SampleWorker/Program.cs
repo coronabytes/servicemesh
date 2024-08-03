@@ -1,9 +1,8 @@
 using Core.Observability;
 using Core.ServiceMesh;
-using Core.ServiceMesh.SampleApp.Services;
-using SampleInterfaces;
+using SampleWorker.Consumers;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = Host.CreateApplicationBuilder(args);
 
 builder.AddObservability(configureTracing: trace =>
 {
@@ -12,7 +11,7 @@ builder.AddObservability(configureTracing: trace =>
 
 builder.Services.Configure<ObservabilityOptions>(options =>
 {
-    
+
 });
 
 builder.AddServiceMesh(options =>
@@ -30,22 +29,16 @@ builder.AddServiceMesh(options =>
     {
         config.MaxDeliver = 3;
         config.MaxAckPending = 8;
+
+        if (name == "dev-SomeOtherCommandHandler")
+        {
+            config.MaxDeliver = 3;
+            config.MaxAckPending = 1;
+        }
     };
-    options.InterfaceMode = ServiceInterfaceMode.Auto;
-    options.Assemblies = [typeof(ISomeService).Assembly, typeof(SomeService).Assembly];
+    options.InterfaceMode = ServiceInterfaceMode.None;
+    options.Assemblies = [typeof(SomeCommandHandler).Assembly];
 });
 
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-var app = builder.Build();
-
-app.UseSwagger();
-app.UseSwaggerUI();
-
-app.UseAuthorization();
-app.UseObservability();
-app.MapControllers();
-
-app.Run();
+var host = builder.Build();
+host.Run();

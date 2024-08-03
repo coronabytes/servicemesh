@@ -4,7 +4,7 @@ using Core.ServiceMesh.Proxy;
 
 namespace Core.ServiceMesh;
 
-public class MeshDispatchProxy : DispatchProxyAsync
+public class RemoteDispatchProxy : DispatchProxyAsync
 {
     internal static ServiceMeshWorker Worker { get; set; } = null!;
 

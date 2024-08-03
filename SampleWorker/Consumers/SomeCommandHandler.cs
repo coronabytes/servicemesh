@@ -1,7 +1,7 @@
 ﻿using Core.ServiceMesh.Abstractions;
 using SampleInterfaces;
 
-namespace Core.ServiceMesh.SampleApp.Consumers;
+namespace SampleWorker.Consumers;
 
 [DurableConsumer("SomeCommandHandler", "default")]
 public class SomeCommandHandler(ILogger<SomeCommandHandler> logger) : IConsumer<SomeCommand>
