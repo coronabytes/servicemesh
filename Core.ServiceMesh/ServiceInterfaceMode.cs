@@ -4,6 +4,7 @@ public enum ServiceInterfaceMode
 {
     /// <summary>
     ///     Do not register service interface with implementation.
+    ///     Use IServiceMesh.CreateProxy&lt;iface&gt;()
     /// </summary>
     None,
 
@@ -19,7 +20,7 @@ public enum ServiceInterfaceMode
     AutoTrace,
 
     /// <summary>
-    ///     Register service interface with remote proxy implementation.
+    ///     Always register service interface with remote proxy implementation.
     ///     Allows testing nats networking even with a single instance.
     /// </summary>
     ForceRemote

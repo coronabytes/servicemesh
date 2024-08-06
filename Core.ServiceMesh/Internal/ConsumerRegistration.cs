@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using Core.ServiceMesh.Abstractions;
 
 namespace Core.ServiceMesh.Internal;
 
@@ -12,4 +13,6 @@ internal class ConsumerRegistration
     public Type Consumer { get; init; }
     public Dictionary<string, (MethodInfo Method, Type MessageType)> Methods { get; init; }
     public bool Obsolete { get; init; }
+
+    public DurableConsumerAttribute? Durable { get; init; }
 }

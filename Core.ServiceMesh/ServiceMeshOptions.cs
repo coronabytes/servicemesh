@@ -12,10 +12,12 @@ namespace Core.ServiceMesh;
 public class ServiceMeshOptions
 {
     /// <summary>
-    ///     prefix for streams and subjects
+    ///     Prefix for streams and subjects
     ///     default: null
     /// </summary>
     public string? Prefix = null;
+
+    public string DefaultStream { get; set; } = "default";
 
     public int NatsPoolSize { get; set; } = 1;
 
@@ -25,19 +27,19 @@ public class ServiceMeshOptions
     };
 
     /// <summary>
-    ///     controls how service interface are registered in the service collection
+    ///     Controls how service interface are registered in the service collection
     ///     default: auto
     /// </summary>
     public ServiceInterfaceMode InterfaceMode { get; set; } = ServiceInterfaceMode.Auto;
 
     /// <summary>
-    ///     assemblies to scan for services and consumers
+    ///     Assemblies to scan for services and consumers
     ///     default: Assembly.GetEntryAssembly()
     /// </summary>
     public Assembly[] Assemblies { get; set; } = [Assembly.GetEntryAssembly()!];
 
     /// <summary>
-    ///     serialize messages
+    ///     Serialize messages
     ///     default: lz4(json())
     /// </summary>
     public Func<object, bool, byte[]> Serialize { get; set; } =
@@ -47,49 +49,55 @@ public class ServiceMeshOptions
                 : JsonSerializer.SerializeToUtf8Bytes(msg);
 
     /// <summary>
-    ///     deserialize messages
+    ///     Deserialize messages
     ///     default: !json(!lz4())
     /// </summary>
     public Func<byte[], Type, bool, object?> Deserialize { get; set; } =
         (body, type, compress) => JsonSerializer.Deserialize(compress ? LZ4Pickler.Unpickle(body) : body, type);
 
     /// <summary>
-    ///     nats subject name from service mesh attribute + method info
+    ///     Nats subject name from service mesh attribute + method info
     /// </summary>
     public Func<ServiceMeshAttribute, MethodInfo, string> ResolveService { get; set; } = (attr, info) =>
         $"{attr.Name}.{info.Name}.G{info.GetGenericArguments().Length}P{info.GetParameters().Length}";
 
     /// <summary>
-    ///   nats subject for message
+    ///   Nats subject for message
     /// </summary>
     public Func<Type, string> ResolveSubject { get; set; } = type => type.Name;
 
     /// <summary>
-    ///     resolve dotnet type from name
+    ///     Resolve dotnet type from name
     ///     some potentially dangerous types could be excluded here
     ///     default: Type.GetType (unfiltered)
     /// </summary>
     public Func<string, Type?> ResolveType { get; set; } = Type.GetType;
 
     /// <summary>
-    ///     concurrent worker count for durable consumers
+    ///     Concurrent worker count for durable consumers
     ///     default:  max(1, cpu/2)
     /// </summary>
     public int StreamWorkers { get; set; } = Math.Max(1, Environment.ProcessorCount / 2);
 
     /// <summary>
-    ///     concurrent worker count for transient consumers
+    ///     Concurrent worker count for transient consumers
     ///     default:  max(1, cpu)
     /// </summary>
     public int BroadcastWorkers { get; set; } = Math.Max(1, Environment.ProcessorCount);
 
     /// <summary>
-    ///     concurrent worker count for services
+    ///     Concurrent worker count for services
     ///     default:  max(1, cpu)
     /// </summary>
     public int ServiceWorkers { get; set; } = Math.Max(1, Environment.ProcessorCount);
 
+    /// <summary>
+    ///   Nats stream configuration
+    /// </summary>
     public Action<string, StreamConfig> ConfigureStream = (s, config) => { };
 
-    public Action<string, ConsumerConfig, NatsJSConsumeOpts> ConfigureConsumer = (s, config, opts) => { };
+    /// <summary>
+    ///   Nats durable consumer configuration
+    /// </summary>
+    public Func<string, ConsumerConfig, NatsJSConsumeOpts, NatsJSConsumeOpts> ConfigureConsumer = (s, config, opts) => opts with {};
 }

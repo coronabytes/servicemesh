@@ -3,7 +3,8 @@ using SampleInterfaces;
 
 namespace SampleWorker.Consumers;
 
-[DurableConsumer("MultiCommandHandler", Stream = "default")]
+[DurableConsumer("MultiCommandHandler", Stream = "default", 
+    DeliverPolicy = DeliverPolicy.New, MaxDeliver = 3, Backoff = [30, 600])]
 public class MultiCommandHandler(ILogger<SomeOtherCommandHandler> logger) 
     : IConsumer<SomeOtherCommand>, IConsumer<SomeCommand>
 {

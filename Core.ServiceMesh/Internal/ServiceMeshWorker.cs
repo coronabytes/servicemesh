@@ -164,10 +164,20 @@ internal class ServiceMeshWorker(
                     Name = durableConsumer.Name,
                     DurableName = durableConsumer.Name,
                     AckPolicy = ConsumerConfigAckPolicy.Explicit,
-                    MaxDeliver = 3,
-                    MaxAckPending = 8,
+                    MaxDeliver = durableConsumer.Durable!.MaxDeliver,
+                    MaxAckPending = durableConsumer.Durable!.MaxAckPending,
+                    AckWait = TimeSpan.FromSeconds(durableConsumer.Durable!.AckWait),
                     FilterSubjects = durableConsumer.Subjects,
-                    DeliverPolicy = ConsumerConfigDeliverPolicy.New
+                    // TODO: check if seconds or nanoseconds
+                    Backoff = durableConsumer.Durable!.Backoff.Any() ? durableConsumer.Durable!.Backoff : null,
+                    DeliverPolicy = durableConsumer.Durable!.DeliverPolicy switch
+                    {
+                        DeliverPolicy.All => ConsumerConfigDeliverPolicy.All,
+                        DeliverPolicy.Last => ConsumerConfigDeliverPolicy.Last,
+                        DeliverPolicy.LastPerSubject => ConsumerConfigDeliverPolicy.LastPerSubject,
+                        DeliverPolicy.New => ConsumerConfigDeliverPolicy.New,
+                        _ => ConsumerConfigDeliverPolicy.All
+                    }
                 };
 
                 var consumeOpts = new NatsJSConsumeOpts
@@ -178,24 +188,25 @@ internal class ServiceMeshWorker(
                     IdleHeartbeat = TimeSpan.FromSeconds(5)
                 };
 
-                options.ConfigureConsumer(durableConsumer.Name, newConsumerConfig, consumeOpts);
+                var modifiedConsumeOpts = options.ConfigureConsumer(durableConsumer.Name, newConsumerConfig, consumeOpts);
 
                 var con = await _jetStream
                     .CreateOrUpdateConsumerAsync(durableConsumer.Stream, newConsumerConfig, stoppingToken)
                     .ConfigureAwait(false);
 
-                tasks.Add(StreamListener(con, consumeOpts, durableConsumer, stoppingToken));
+                tasks.Add(DurableListener(con, modifiedConsumeOpts, durableConsumer, stoppingToken));
             }
 
         foreach (var transientConsumer in ServiceMeshExtensions.Consumers.Where(x => !x.IsDurable))
-            tasks.Add(BroadcastListener(transientConsumer, stoppingToken));
+            foreach (var m in transientConsumer.Methods)
+                tasks.Add(TransientListener(transientConsumer, m.Key, stoppingToken));
 
         for (var i = 0; i < options.StreamWorkers; i++)
-            tasks.Add(StreamWorker(stoppingToken));
+            tasks.Add(DurableWorker(stoppingToken));
         for (var i = 0; i < options.ServiceWorkers; i++)
             tasks.Add(ServiceWorker(stoppingToken));
         for (var i = 0; i < options.BroadcastWorkers; i++)
-            tasks.Add(BroadcastWorker(stoppingToken));
+            tasks.Add(TransientWorker(stoppingToken));
 
         await Task.WhenAll(tasks);
 
@@ -212,7 +223,7 @@ internal class ServiceMeshWorker(
             await _serviceChannel!.Writer.WriteAsync((msg, reg), stoppingToken);
     }
 
-    private async Task StreamListener(INatsJSConsumer con,
+    private async Task DurableListener(INatsJSConsumer con,
         NatsJSConsumeOpts consumeOpts,
         ConsumerRegistration reg,
         CancellationToken stoppingToken)
@@ -221,15 +232,16 @@ internal class ServiceMeshWorker(
             await _streamChannel!.Writer.WriteAsync((msg, reg), stoppingToken);
     }
 
-    private async Task BroadcastListener(
+    private async Task TransientListener(
         ConsumerRegistration reg,
+        string subject,
         CancellationToken stoppingToken)
     {
-        await foreach (var msg in nats.SubscribeAsync<byte[]>(reg.Subjects[0], reg.QueueGroup, cancellationToken: stoppingToken))
+        await foreach (var msg in nats.SubscribeAsync<byte[]>(subject, reg.QueueGroup, cancellationToken: stoppingToken))
             await _broadcastChannel!.Writer.WriteAsync((msg, reg), stoppingToken);
     }
 
-    private async Task BroadcastWorker(CancellationToken stoppingToken)
+    private async Task TransientWorker(CancellationToken stoppingToken)
     {
         await foreach (var tuple in _broadcastChannel!.Reader.ReadAllAsync(stoppingToken))
         {
@@ -337,7 +349,7 @@ internal class ServiceMeshWorker(
         }
     }
 
-    private async Task StreamWorker(CancellationToken stoppingToken)
+    private async Task DurableWorker(CancellationToken stoppingToken)
     {
         await foreach (var tuple in _streamChannel!.Reader.ReadAllAsync(stoppingToken))
         {

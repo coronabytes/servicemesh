@@ -25,17 +25,6 @@ builder.AddServiceMesh(options =>
     {
         config.MaxAge = TimeSpan.FromDays(1);
     };
-    options.ConfigureConsumer = (name, config, opts) =>
-    {
-        config.MaxDeliver = 3;
-        config.MaxAckPending = 8;
-
-        if (name == "dev-SomeOtherCommandHandler")
-        {
-            config.MaxDeliver = 3;
-            config.MaxAckPending = 1;
-        }
-    };
     options.InterfaceMode = ServiceInterfaceMode.None;
     options.Assemblies = [typeof(SomeCommandHandler).Assembly];
 });

@@ -1,5 +1,4 @@
 ﻿using System.Reflection;
-using System.Runtime.InteropServices.JavaScript;
 using Core.ServiceMesh.Abstractions;
 using Core.ServiceMesh.Internal;
 using Core.ServiceMesh.Proxy;
@@ -43,7 +42,8 @@ public static class ServiceMeshExtensions
             return a;
         };
 
-        foreach (var type in asms.SelectMany(asm=> asm.GetTypes().Where(y => y.GetCustomAttribute<ServiceMeshAttribute>() != null)))
+        foreach (var type in asms.SelectMany(asm =>
+                     asm.GetTypes().Where(y => y.GetCustomAttribute<ServiceMeshAttribute>() != null)))
         {
             var attr = type.GetCustomAttribute<ServiceMeshAttribute>()!;
 
@@ -57,7 +57,6 @@ public static class ServiceMeshExtensions
                 var methods = type.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance);
 
                 foreach (var method in methods)
-                {
                     Services.Add(new ServiceRegistration
                     {
                         Subject = applyPrefix(options.ResolveService(attr, method)),
@@ -66,14 +65,12 @@ public static class ServiceMeshExtensions
                         Method = method,
                         QueueGroup = applyPrefix(attr.QueueGroup ?? attr.Name)
                     });
-                }
 
                 builder.Services.Add(new ServiceDescriptor(type, type, ServiceLifetime.Scoped));
             }
         }
 
         if (options.InterfaceMode != ServiceInterfaceMode.None)
-        {
             foreach (var serviceInterface in interfaces)
             {
                 var impl = Services.FirstOrDefault(x => x.InterfaceType == serviceInterface);
@@ -89,8 +86,7 @@ public static class ServiceMeshExtensions
                         builder.Services.AddSingleton(serviceInterface,
                             DispatchProxyAsync.Create(serviceInterface, typeof(RemoteDispatchProxy)));
                     else if (options.InterfaceMode == ServiceInterfaceMode.AutoTrace)
-                    {
-                        builder.Services.AddSingleton(serviceInterface, (sp) =>
+                        builder.Services.AddSingleton(serviceInterface, sp =>
                         {
                             var proxy = DispatchProxyAsync.Create(serviceInterface, typeof(TraceDispatchProxy));
 
@@ -102,13 +98,11 @@ public static class ServiceMeshExtensions
 
                             return proxy;
                         });
-                    }
                     else
                         builder.Services.Add(new ServiceDescriptor(serviceInterface, impl.ImplementationType,
                             ServiceLifetime.Scoped));
                 }
             }
-        }
 
         foreach (var consumer in asms.SelectMany(asm => asm.GetTypes().Where(x => x.GetInterfaces()
                      .Any(y => y.IsGenericType && y.GetGenericTypeDefinition() == typeof(IConsumer<>))).ToList()))
@@ -125,10 +119,7 @@ public static class ServiceMeshExtensions
             var ifaces = consumer.GetInterfaces()
                 .Where(y => y.IsGenericType && y.GetGenericTypeDefinition() == typeof(IConsumer<>)).ToList();
 
-            if (ifaces.Count > 1)
-            {
-                ifaces.ToArray();
-            }
+            if (ifaces.Count > 1) ifaces.ToArray();
 
             var map = new Dictionary<Type, MethodInfo>();
 
@@ -136,8 +127,8 @@ public static class ServiceMeshExtensions
             {
                 var msgType = iface.GetGenericArguments()[0];
 
-                var method = consumer.GetMethod(nameof(IConsumer<object>.ConsumeAsync), 
-                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy, 
+                var method = consumer.GetMethod(nameof(IConsumer<object>.ConsumeAsync),
+                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy,
                     [msgType, typeof(CancellationToken)]);
 
                 map.Add(msgType, method!);
@@ -151,13 +142,14 @@ public static class ServiceMeshExtensions
             Consumers.Add(new ConsumerRegistration
             {
                 IsDurable = durableAttribute != null,
+                Durable = durableAttribute,
                 Name = applyPrefix(durableAttribute?.Name ?? string.Empty)!,
                 Subjects = map.Select(x => applyPrefix(options.ResolveSubject(x.Key))!).ToArray(),
-                Stream = applyPrefix(durableAttribute?.Stream ?? string.Empty)!,
+                Stream = applyPrefix(durableAttribute?.Stream ?? options.DefaultStream)!,
                 QueueGroup = applyPrefix(transientAttribute?.QueueGroup),
                 Consumer = consumer,
                 Obsolete = obsolete,
-                Methods = map.ToDictionary(x=> applyPrefix(options.ResolveSubject(x.Key))!, 
+                Methods = map.ToDictionary(x => applyPrefix(options.ResolveSubject(x.Key))!,
                     x => (x.Value, x.Key))
             });
         }

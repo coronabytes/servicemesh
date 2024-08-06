@@ -26,11 +26,6 @@ builder.AddServiceMesh(options =>
     {
         config.MaxAge = TimeSpan.FromDays(1);
     };
-    options.ConfigureConsumer = (name, config, opts) =>
-    {
-        config.MaxDeliver = 3;
-        config.MaxAckPending = 8;
-    };
     options.InterfaceMode = ServiceInterfaceMode.Auto;
     options.Assemblies = [typeof(ISomeService).Assembly, typeof(SomeService).Assembly];
 });

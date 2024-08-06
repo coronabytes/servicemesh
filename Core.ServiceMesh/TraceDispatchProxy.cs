@@ -9,8 +9,8 @@ namespace Core.ServiceMesh;
 
 public class TraceDispatchProxy : DispatchProxyAsync
 {
-    internal IServiceProvider ServiceProvider { get; set; }
-    internal Type ImplementationType { get; set; }
+    internal IServiceProvider ServiceProvider { get; set; } = null!;
+    internal Type ImplementationType { get; set; } = null!;
 
     public override object Invoke(MethodInfo method, object[] args)
     {
@@ -30,7 +30,7 @@ public class TraceDispatchProxy : DispatchProxyAsync
             activity.DisplayName = $"{attr.Name}.{method.Name}";
         }
 
-        return (Task)method.Invoke(instance, args);
+        return (Task)method.Invoke(instance, args)!;
     }
 
     public override Task<T> InvokeAsyncT<T>(MethodInfo method, object[] args)
@@ -46,6 +46,6 @@ public class TraceDispatchProxy : DispatchProxyAsync
             activity.DisplayName = $"{attr.Name}.{method.Name}";
         }
 
-        return (Task<T>)method.Invoke(instance, args);
+        return (Task<T>)method.Invoke(instance, args)!;
     }
 }
