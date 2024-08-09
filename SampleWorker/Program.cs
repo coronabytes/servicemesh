@@ -6,7 +6,7 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.AddObservability(configureTracing: trace =>
 {
-    trace.AddSource("core.servicemesh");
+    trace.AddServiceMeshInstrumentation();
 });
 
 builder.Services.Configure<ObservabilityOptions>(options =>

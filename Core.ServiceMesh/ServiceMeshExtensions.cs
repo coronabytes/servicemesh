@@ -1,10 +1,12 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics;
+using System.Reflection;
 using Core.ServiceMesh.Abstractions;
 using Core.ServiceMesh.Internal;
 using Core.ServiceMesh.Proxy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Hosting;
+using OpenTelemetry.Trace;
 
 namespace Core.ServiceMesh;
 
@@ -154,6 +156,12 @@ public static class ServiceMeshExtensions
             });
         }
 
+        return builder;
+    }
+
+    public static TracerProviderBuilder AddServiceMeshInstrumentation(this TracerProviderBuilder builder)
+    {
+        builder.AddSource("core.servicemesh");
         return builder;
     }
 }
