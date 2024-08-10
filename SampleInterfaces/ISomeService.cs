@@ -9,4 +9,5 @@ public interface ISomeService
     Task<string> GetSomeString(int a, string b);
     Task CreateSomeObject();
     Task<T> GenericAdd<T>(T a, T b) where T : INumber<T>;
+    Task<SampleResponse> Sample(SampleRequest request);
 };

@@ -1,4 +1,6 @@
-﻿namespace Core.ServiceMesh.Abstractions;
+﻿using System.Reflection;
+
+namespace Core.ServiceMesh.Abstractions;
 
 public interface IServiceMesh
 {
@@ -10,13 +12,16 @@ public interface IServiceMesh
     T CreateProxy<T>() where T : class;
 
     /// <summary>
-    ///   publish message and await confirmation.
-    ///   requires at least one consumer or timeout.
+    ///   Publish message and await confirmation.
+    ///   Requires at least one consumer or timeout.
     /// </summary>
     ValueTask PublishAsync(object message, int retry = 3, TimeSpan? retryWait = null, string? id = null);
 
     /// <summary>
-    ///   send message and ignore confirmation
+    ///   Send message and ignore confirmation
     /// </summary>
     ValueTask SendAsync(object message);
+
+    Task<T> RequestAsync<T>(MethodInfo info, object[] args);
+    Task RequestAsync(MethodInfo info, object[] args);
 }

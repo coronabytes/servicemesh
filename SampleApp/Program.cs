@@ -1,13 +1,14 @@
 using Core.Observability;
 using Core.ServiceMesh;
-using Core.ServiceMesh.SampleApp.Services;
+using Core.ServiceMesh.Abstractions;
+using SampleApp.Services;
 using SampleInterfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddObservability(configureTracing: trace =>
 {
-    trace.AddSource("core.servicemesh");
+    trace.AddServiceMeshInstrumentation();
 });
 
 builder.Services.Configure<ObservabilityOptions>(options =>
@@ -42,5 +43,7 @@ app.UseSwaggerUI();
 app.UseAuthorization();
 app.UseObservability();
 app.MapControllers();
+
+app.MapServiceMesh();
 
 app.Run();

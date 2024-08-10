@@ -3,7 +3,7 @@ using System.Numerics;
 using Core.ServiceMesh.Abstractions;
 using SampleInterfaces;
 
-namespace Core.ServiceMesh.SampleApp.Services;
+namespace SampleApp.Services;
 
 [ServiceMesh("someservice", "someservice")]
 public class SomeService(ILogger<SomeService> logger) : ISomeService
@@ -27,5 +27,10 @@ public class SomeService(ILogger<SomeService> logger) : ISomeService
     {
         await Task.Delay(100);
         return a + b;
+    }
+
+    public Task<SampleResponse> Sample(SampleRequest request)
+    {
+        return Task.FromResult(new SampleResponse(request.Name + " " + request.Amount));
     }
 }

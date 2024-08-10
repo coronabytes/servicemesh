@@ -1,8 +1,13 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Frozen;
+using System.Diagnostics;
+using System.Linq.Expressions;
 using System.Reflection;
 using Core.ServiceMesh.Abstractions;
 using Core.ServiceMesh.Internal;
 using Core.ServiceMesh.Proxy;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Hosting;
@@ -57,16 +62,27 @@ public static class ServiceMeshExtensions
             {
                 var itype = type.GetInterfaces().Single();
                 var methods = type.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance);
+                var dic = new Dictionary<string, MethodInfo>();
 
                 foreach (var method in methods)
-                    Services.Add(new ServiceRegistration
-                    {
-                        Subject = applyPrefix(options.ResolveService(attr, method)),
-                        InterfaceType = itype,
-                        ImplementationType = type,
-                        Method = method,
-                        QueueGroup = applyPrefix(attr.QueueGroup ?? attr.Name)
-                    });
+                {
+                    var subject = applyPrefix(options.ResolveService(attr, method));
+
+                    if (subject == null)
+                        continue;
+
+                    dic.Add(subject, method);
+                }
+
+                Services.Add(new ServiceRegistration
+                {
+                    Name = attr.Name,
+                    Sub = applyPrefix(attr.Name)!,
+                    InterfaceType = itype,
+                    ImplementationType = type,
+                    Methods = dic.ToFrozenDictionary(),
+                    QueueGroup = applyPrefix(attr.QueueGroup ?? attr.Name)
+                });
 
                 builder.Services.Add(new ServiceDescriptor(type, type, ServiceLifetime.Scoped));
             }
@@ -151,7 +167,7 @@ public static class ServiceMeshExtensions
                 QueueGroup = applyPrefix(transientAttribute?.QueueGroup),
                 Consumer = consumer,
                 Obsolete = obsolete,
-                Methods = map.ToDictionary(x => applyPrefix(options.ResolveSubject(x.Key))!,
+                Methods = map.ToFrozenDictionary(x => applyPrefix(options.ResolveSubject(x.Key))!,
                     x => (x.Value, x.Key))
             });
         }
@@ -163,5 +179,87 @@ public static class ServiceMeshExtensions
     {
         builder.AddSource("core.servicemesh");
         return builder;
+    }
+
+    internal static void DynamicPublish<T>(WebApplication app) where T : class
+    {
+        app.MapPost("/publish/" + typeof(T).Name, 
+            async ([FromBody] T value, [FromServices] IServiceMesh mesh) =>
+        {
+            await mesh.PublishAsync(value);
+        }).WithTags("mesh");
+    }
+
+    internal static void DynamicSend<T>(WebApplication app) where T : class
+    {
+        app.MapPost("/send/" + typeof(T).Name,
+            async ([FromBody] T value, [FromServices] IServiceMesh mesh) =>
+            {
+                await mesh.PublishAsync(value);
+            }).WithTags("mesh");
+    }
+
+    internal static void DynamicRequestT<TReq, TRet>(WebApplication app, string service, MethodInfo info) where TReq : class
+    {
+        app.MapPost("/service/" + service + "/" + info.Name,
+            async ([FromBody] TReq value, [FromServices] IServiceMesh mesh) => 
+            await mesh.RequestAsync<TRet>(info, [value]))
+            .Produces<TRet>()
+            .WithTags(service);
+    }
+
+    internal static void DynamicRequest<TReq>(WebApplication app, string service, MethodInfo info) where TReq : class
+    {
+        app.MapPost("/service/" + service + "/" + info.Name,
+                async ([FromBody] TReq value, [FromServices] IServiceMesh mesh) =>
+                {
+                    await mesh.RequestAsync(info, [value]);
+                })
+            .WithTags(service);
+    }
+
+    public static WebApplication MapServiceMesh(this WebApplication app)
+    {
+        var flags = BindingFlags.NonPublic | BindingFlags.Static;
+
+        var dynPublish = typeof(ServiceMeshExtensions).GetMethod(nameof(DynamicPublish), flags);
+        var dynSend = typeof(ServiceMeshExtensions).GetMethod(nameof(DynamicSend), flags);
+        var dynRequest = typeof(ServiceMeshExtensions).GetMethod(nameof(DynamicRequest), flags);
+        var dynRequestT = typeof(ServiceMeshExtensions).GetMethod(nameof(DynamicRequestT), flags);
+
+        foreach (var consumer in Consumers)
+        {
+            foreach (var method in consumer.Methods)
+            {
+                dynPublish!.MakeGenericMethod(method.Value.MessageType).Invoke(null, [app]);
+                dynSend!.MakeGenericMethod(method.Value.MessageType).Invoke(null, [app]);
+            }
+        }
+
+        foreach (var service in Services)
+        {
+            foreach (var method in service.Methods)
+            {
+                // no generics over http
+                if (method.Value.GetParameters().Length != 1
+                    || method.Value.GetGenericArguments().Length > 0)
+                    continue;
+
+                var retType = method.Value.ReturnType;
+                var reqType = method.Value.GetParameters()[0].ParameterType;
+
+                if (retType.GenericTypeArguments.Length == 0)
+                {
+                    dynRequest!.MakeGenericMethod(reqType).Invoke(null, [app, service.Name, method.Value]);
+                }
+                else
+                {
+                    var resType = retType.GenericTypeArguments[0];
+                    dynRequestT!.MakeGenericMethod(reqType, resType).Invoke(null, [app, service.Name, method.Value]);
+                }
+            }
+        }
+
+        return app;
     }
 }

@@ -45,7 +45,7 @@ internal class ServiceMeshWorker(
                 new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
                 (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Producer, Activity.Current.Context);
+        using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Producer, Activity.Current?.Context ?? default);
 
         if (activity != null)
             activity.DisplayName = subject;
@@ -72,7 +72,7 @@ internal class ServiceMeshWorker(
                 new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
                 (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Producer, Activity.Current.Context);
+        using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Producer, Activity.Current?.Context ?? default);
 
         if (activity != null)
             activity.DisplayName = subject;
@@ -105,15 +105,44 @@ internal class ServiceMeshWorker(
             {
                 var streamInfo = await _jetStream.GetStreamAsync(stream.Key);
 
-                var currentStreamConfig = streamInfo.Info.Config;
-                var mergedSubjects = (currentStreamConfig.Subjects ?? []).ToHashSet();
+                var oldcfg = streamInfo.Info.Config;
+                var mergedSubjects = (oldcfg.Subjects ?? []).ToHashSet();
                 mergedSubjects.UnionWith(subjects);
 
-                var newStreamConfig = new StreamConfig(stream.Key, mergedSubjects.ToList());
-                options.ConfigureStream(stream.Key, newStreamConfig);
+                var newcfg = new StreamConfig(stream.Key, mergedSubjects.ToList());
+                options.ConfigureStream(stream.Key, newcfg);
 
-                if (!mergedSubjects.SetEquals(subjects))
-                    await _jetStream.UpdateStreamAsync(newStreamConfig, stoppingToken);
+                if (newcfg.Storage != oldcfg.Storage 
+                    || newcfg.Name != oldcfg.Name
+                    || (newcfg.MaxConsumers != oldcfg.MaxConsumers && newcfg.MaxConsumers > 0)
+                    || newcfg.Retention != oldcfg.Retention
+                    || newcfg.DenyDelete != oldcfg.DenyDelete
+                    || newcfg.DenyPurge != oldcfg.DenyPurge
+                    )
+                {
+                    logger.LogError("stream {0} cannot be updated", stream.Key);
+                    continue;
+                }
+
+                if (!mergedSubjects.SetEquals(subjects) 
+                    || newcfg.MaxAge != oldcfg.MaxAge
+                    || newcfg.MaxMsgs != oldcfg.MaxMsgs
+                    || newcfg.MaxBytes != oldcfg.MaxBytes
+                    || newcfg.DuplicateWindow != oldcfg.DuplicateWindow
+                    || newcfg.NumReplicas != oldcfg.NumReplicas
+                    || newcfg.MaxMsgSize != oldcfg.MaxMsgSize
+                    || newcfg.NoAck != oldcfg.NoAck
+                    || newcfg.Discard != oldcfg.Discard
+                    || newcfg.Placement?.Cluster != oldcfg.Placement?.Cluster
+                    || !new HashSet<string>(newcfg.Placement?.Tags ?? []).SetEquals(oldcfg.Placement?.Tags ?? [])
+                    || newcfg.MaxMsgsPerSubject != oldcfg.MaxMsgsPerSubject
+                    || newcfg.AllowRollupHdrs != oldcfg.AllowRollupHdrs
+                    || newcfg.Republish != oldcfg.Republish
+                    || newcfg.Compression != oldcfg.Compression
+                    )
+                {
+                    await _jetStream.UpdateStreamAsync(newcfg, stoppingToken);
+                }
             }
             catch (Exception)
             {
@@ -123,6 +152,8 @@ internal class ServiceMeshWorker(
                     DuplicateWindow = TimeSpan.FromMinutes(10),
                     MaxAge = TimeSpan.FromDays(14)
                 };
+
+                options.ConfigureStream(stream.Key, newStreamConfig);
 
                 await _jetStream.CreateStreamAsync(newStreamConfig, stoppingToken);
             }
@@ -218,7 +249,7 @@ internal class ServiceMeshWorker(
     private async Task ServiceListener(ServiceRegistration reg,
         CancellationToken stoppingToken)
     {
-        await foreach (var msg in nats!.SubscribeAsync<byte[]>(reg.Subject, reg.QueueGroup,
+        await foreach (var msg in nats.SubscribeAsync<byte[]>(reg.Sub + ".>", reg.QueueGroup,
                            cancellationToken: stoppingToken))
             await _serviceChannel!.Writer.WriteAsync((msg, reg), stoppingToken);
     }
@@ -300,51 +331,61 @@ internal class ServiceMeshWorker(
             using var activity =
                 ActivitySource.StartActivity("NATS", ActivityKind.Server, parentContext.ActivityContext);
 
-            var invocation = (ServiceInvocation)options.Deserialize(msg.Data!, typeof(ServiceInvocation), true)!;
-            var signatures = invocation.Signature.Select(options.ResolveType).ToArray();
-
-            if (activity != null)
-                activity.DisplayName = $"{invocation.Service}.{invocation.Method}";
-
-            var args = new object[signatures.Length];
-
-            for (var i = 0; i < signatures.Length; i++)
-            {
-                var sig = signatures[i];
-                args[i] = options.Deserialize(invocation.Arguments[i], sig, false);
-            }
-
-            await using var scope = serviceProvider.CreateAsyncScope();
-            var instance = scope.ServiceProvider.GetRequiredService(reg.ImplementationType);
-
-            try
-            {
-                var method = reg.Method;
-
-                if (method.IsGenericMethod)
-                    method = method.MakeGenericMethod(invocation.Generics.Select(options.ResolveType).ToArray()!);
-
-                dynamic awaitable = method.Invoke(instance, args.ToArray());
-                await awaitable;
-
-                if (reg.Method.ReturnType == typeof(Task))
-                {
-                    await msg.ReplyAsync<byte[]>([]);
-                }
-                else
-                {
-                    var res = awaitable.GetAwaiter().GetResult();
-                    await msg.ReplyAsync<byte[]>(options.Serialize(res, true));
-                }
-            }
-            catch (Exception e)
+            if (!reg.Methods.TryGetValue(msg.Subject, out var method))
             {
                 var headers = new NatsHeaders
                 {
-                    ["exception"] = e.Message
+                    ["exception"] = $"method handler for {msg.Subject} not found"
                 };
 
                 await msg.ReplyAsync<byte[]>([], headers);
+            }
+            else
+            {
+                var invocation = (ServiceInvocation)options.Deserialize(msg.Data!, typeof(ServiceInvocation), true)!;
+                var signatures = invocation.Signature.Select(options.ResolveType).ToArray();
+
+                if (activity != null)
+                    activity.DisplayName = $"{invocation.Service}.{invocation.Method}";
+
+                var args = new object[signatures.Length];
+
+                for (var i = 0; i < signatures.Length; i++)
+                {
+                    var sig = signatures[i];
+                    args[i] = options.Deserialize(invocation.Arguments[i], sig, false);
+                }
+
+                await using var scope = serviceProvider.CreateAsyncScope();
+                var instance = scope.ServiceProvider.GetRequiredService(reg.ImplementationType);
+
+                try
+                {
+                    if (method.IsGenericMethod)
+                        method = method.MakeGenericMethod(invocation.Generics.Select(options.ResolveType).ToArray()!);
+
+                    dynamic awaitable = method.Invoke(instance, args.ToArray());
+                    await awaitable;
+
+                    if (method.ReturnType == typeof(Task))
+                    {
+                        await msg.ReplyAsync<byte[]>([]);
+                    }
+                    else
+                    {
+                        var res = awaitable.GetAwaiter().GetResult();
+                        await msg.ReplyAsync<byte[]>(options.Serialize(res, true));
+                    }
+                }
+                catch (Exception e)
+                {
+                    var headers = new NatsHeaders
+                    {
+                        ["exception"] = e.Message
+                    };
+
+                    await msg.ReplyAsync<byte[]>([], headers);
+                }
             }
         }
     }
