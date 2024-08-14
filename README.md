@@ -16,7 +16,15 @@ dotnet add package Core.ServiceMesh
 ```csharp
 builder.AddServiceMesh(options =>
 {
-    options.Nats = "nats://localhost:4222";
+    options.ConfigureNats = opts => opts with
+    {
+        Url = "nats://localhost:4222"
+    };
+    options.ConfigureStream = (name, config) =>
+    {
+        config.MaxAge = TimeSpan.FromDays(1);
+    };
+    options.InterfaceMode = ServiceInterfaceMode.Auto;
     options.Assemblies = [typeof(ISomeService).Assembly, typeof(SomeService).Assembly];
 });
 ```
@@ -36,7 +44,7 @@ public interface ISomeService
 ## Service Implementation
 
 ```csharp
-[ServiceMesh("someservice", "someservice")]
+[ServiceMesh("someservice")]
 public class SomeService(ILogger<SomeService> logger) : ISomeService
 {
     public async Task<string> GetSomeString(int a, string b)

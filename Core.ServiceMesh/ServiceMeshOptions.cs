@@ -1,8 +1,9 @@
-﻿using System.Diagnostics.Metrics;
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.Json;
 using Core.ServiceMesh.Abstractions;
 using K4os.Compression.LZ4;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
@@ -11,6 +12,17 @@ namespace Core.ServiceMesh;
 
 public class ServiceMeshOptions
 {
+    /// <summary>
+    ///     Nats durable consumer configuration
+    /// </summary>
+    public Func<string, ConsumerConfig, NatsJSConsumeOpts, NatsJSConsumeOpts> ConfigureConsumer =
+        (s, config, opts) => opts with { };
+
+    /// <summary>
+    ///     Nats stream configuration
+    /// </summary>
+    public Action<string, StreamConfig> ConfigureStream = (s, config) => { };
+
     /// <summary>
     ///     Prefix for streams and subjects
     ///     default: null
@@ -62,9 +74,9 @@ public class ServiceMeshOptions
         $"{attr.Name}.{info.Name}.G{info.GetGenericArguments().Length}P{info.GetParameters().Length}";
 
     /// <summary>
-    ///   Nats subject for message
+    ///     Nats subject for message
     /// </summary>
-    public Func<Type, string> ResolveSubject { get; set; } = type => type.Name;
+    public Func<Type, string> ResolveSubject { get; set; } = type => type.FullName ?? type.Name;
 
     /// <summary>
     ///     Resolve dotnet type from name
@@ -91,13 +103,25 @@ public class ServiceMeshOptions
     /// </summary>
     public int ServiceWorkers { get; set; } = Math.Max(1, Environment.ProcessorCount);
 
-    /// <summary>
-    ///   Nats stream configuration
-    /// </summary>
-    public Action<string, StreamConfig> ConfigureStream = (s, config) => { };
+    public Action<WebApplication, Type, Delegate> MapHttpPublishRoute { get; set; } =
+        (app, type, handler) =>
+        {
+            app.MapPost("/publish/" + type.Name, handler)
+                .WithTags("mesh");
+        };
 
-    /// <summary>
-    ///   Nats durable consumer configuration
-    /// </summary>
-    public Func<string, ConsumerConfig, NatsJSConsumeOpts, NatsJSConsumeOpts> ConfigureConsumer = (s, config, opts) => opts with {};
+    public Action<WebApplication, Type, Delegate> MapHttpSendRoute { get; set; } =
+        (app, type, handler) =>
+        {
+            app.MapPost("/send/" + type.Name, handler)
+                .WithTags("mesh");
+        };
+
+    public Action<WebApplication, Type, Type?, string, MethodInfo, Delegate> MapHttpRequestRoute { get; set; } =
+        (app, requestType, responseType, service, method, handler) =>
+        {
+            app.MapPost("/service/" + service + "/" + method.Name, handler)
+                .Produces(200, responseType)
+                .WithTags(service);
+        };
 }

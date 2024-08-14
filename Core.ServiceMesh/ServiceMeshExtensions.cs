@@ -183,39 +183,40 @@ public static class ServiceMeshExtensions
 
     internal static void DynamicPublish<T>(WebApplication app) where T : class
     {
-        app.MapPost("/publish/" + typeof(T).Name, 
-            async ([FromBody] T value, [FromServices] IServiceMesh mesh) =>
+        var options = app.Services.GetRequiredService<ServiceMeshOptions>();
+
+        options.MapHttpPublishRoute(app, typeof(T), async ([FromBody] T value, [FromServices] IServiceMesh mesh) =>
         {
             await mesh.PublishAsync(value);
-        }).WithTags("mesh");
+        });
     }
 
     internal static void DynamicSend<T>(WebApplication app) where T : class
     {
-        app.MapPost("/send/" + typeof(T).Name,
-            async ([FromBody] T value, [FromServices] IServiceMesh mesh) =>
-            {
-                await mesh.PublishAsync(value);
-            }).WithTags("mesh");
+        var options = app.Services.GetRequiredService<ServiceMeshOptions>();
+
+        options.MapHttpSendRoute(app, typeof(T), async ([FromBody] T value, [FromServices] IServiceMesh mesh) =>
+        {
+            await mesh.SendAsync(value);
+        });
     }
 
     internal static void DynamicRequestT<TReq, TRet>(WebApplication app, string service, MethodInfo info) where TReq : class
     {
-        app.MapPost("/service/" + service + "/" + info.Name,
-            async ([FromBody] TReq value, [FromServices] IServiceMesh mesh) => 
-            await mesh.RequestAsync<TRet>(info, [value]))
-            .Produces<TRet>()
-            .WithTags(service);
+        var options = app.Services.GetRequiredService<ServiceMeshOptions>();
+
+        options.MapHttpRequestRoute(app, typeof(TReq), typeof(TRet), service, info,
+            async ([FromBody] TReq value, [FromServices] IServiceMesh mesh) =>
+            await mesh.RequestAsync<TRet>(info, [value]));
     }
 
     internal static void DynamicRequest<TReq>(WebApplication app, string service, MethodInfo info) where TReq : class
     {
-        app.MapPost("/service/" + service + "/" + info.Name,
-                async ([FromBody] TReq value, [FromServices] IServiceMesh mesh) =>
-                {
-                    await mesh.RequestAsync(info, [value]);
-                })
-            .WithTags(service);
+        var options = app.Services.GetRequiredService<ServiceMeshOptions>();
+
+        options.MapHttpRequestRoute(app, typeof(TReq), null, service, info,
+            async ([FromBody] TReq value, [FromServices] IServiceMesh mesh) =>
+            await mesh.RequestAsync(info, [value]));
     }
 
     public static WebApplication MapServiceMesh(this WebApplication app)
