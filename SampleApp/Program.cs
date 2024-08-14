@@ -44,6 +44,6 @@ app.UseAuthorization();
 app.UseObservability();
 app.MapControllers();
 
-app.MapServiceMesh();
+app.MapServiceMesh(["Command", "Message"]);
 
 app.Run();

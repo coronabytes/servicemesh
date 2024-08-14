@@ -1,15 +1,13 @@
 ﻿using System.Collections.Frozen;
-using System.Diagnostics;
-using System.Linq.Expressions;
 using System.Reflection;
 using Core.ServiceMesh.Abstractions;
 using Core.ServiceMesh.Internal;
 using Core.ServiceMesh.Proxy;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using NATS.Client.Hosting;
 using OpenTelemetry.Trace;
 
@@ -50,17 +48,22 @@ public static class ServiceMeshExtensions
         };
 
         foreach (var type in asms.SelectMany(asm =>
-                     asm.GetTypes().Where(y => y.GetCustomAttribute<ServiceMeshAttribute>() != null)))
+                     asm.GetTypes().Where(y =>
+                     {
+                         return y.GetCustomAttribute<ServiceMeshAttribute>() != null
+                                || y.GetInterfaces().Any(z => z.GetCustomAttribute<ServiceMeshAttribute>() != null);
+                     })))
         {
-            var attr = type.GetCustomAttribute<ServiceMeshAttribute>()!;
-
             if (type.IsInterface)
             {
                 interfaces.Add(type);
             }
             else
             {
+                // TODO: multiple service implementations?
                 var itype = type.GetInterfaces().Single();
+                var attr = itype.GetCustomAttribute<ServiceMeshAttribute>()!;
+
                 var methods = type.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance);
                 var dic = new Dictionary<string, MethodInfo>();
 
@@ -81,7 +84,7 @@ public static class ServiceMeshExtensions
                     InterfaceType = itype,
                     ImplementationType = type,
                     Methods = dic.ToFrozenDictionary(),
-                    QueueGroup = applyPrefix(attr.QueueGroup ?? attr.Name)
+                    QueueGroup = applyPrefix(attr.Name)!
                 });
 
                 builder.Services.Add(new ServiceDescriptor(type, type, ServiceLifetime.Scoped));
@@ -185,23 +188,20 @@ public static class ServiceMeshExtensions
     {
         var options = app.Services.GetRequiredService<ServiceMeshOptions>();
 
-        options.MapHttpPublishRoute(app, typeof(T), async ([FromBody] T value, [FromServices] IServiceMesh mesh) =>
-        {
-            await mesh.PublishAsync(value);
-        });
+        options.MapHttpPublishRoute(app, typeof(T),
+            async ([FromBody] T value, [FromServices] IServiceMesh mesh) => { await mesh.PublishAsync(value); });
     }
 
     internal static void DynamicSend<T>(WebApplication app) where T : class
     {
         var options = app.Services.GetRequiredService<ServiceMeshOptions>();
 
-        options.MapHttpSendRoute(app, typeof(T), async ([FromBody] T value, [FromServices] IServiceMesh mesh) =>
-        {
-            await mesh.SendAsync(value);
-        });
+        options.MapHttpSendRoute(app, typeof(T),
+            async ([FromBody] T value, [FromServices] IServiceMesh mesh) => { await mesh.SendAsync(value); });
     }
 
-    internal static void DynamicRequestT<TReq, TRet>(WebApplication app, string service, MethodInfo info) where TReq : class
+    internal static void DynamicRequestT<TReq, TRet>(WebApplication app, string service, MethodInfo info)
+        where TReq : class
     {
         var options = app.Services.GetRequiredService<ServiceMeshOptions>();
 
@@ -219,7 +219,7 @@ public static class ServiceMeshExtensions
             await mesh.RequestAsync(info, [value]));
     }
 
-    public static WebApplication MapServiceMesh(this WebApplication app)
+    public static WebApplication MapServiceMesh(this WebApplication app, string[]? consumerSuffixes = null)
     {
         var flags = BindingFlags.NonPublic | BindingFlags.Static;
 
@@ -228,36 +228,40 @@ public static class ServiceMeshExtensions
         var dynRequest = typeof(ServiceMeshExtensions).GetMethod(nameof(DynamicRequest), flags);
         var dynRequestT = typeof(ServiceMeshExtensions).GetMethod(nameof(DynamicRequestT), flags);
 
-        foreach (var consumer in Consumers)
+        var options = app.Services.GetRequiredService<ServiceMeshOptions>();
+        var asms = options.Assemblies.Distinct().ToList();
+
+        if (consumerSuffixes != null)
         {
-            foreach (var method in consumer.Methods)
+            var messageTypes = asms.SelectMany(x =>
+                x.GetTypes().Where(y => y.IsPublic && consumerSuffixes.Any(z => y.Name.EndsWith(z)))).ToList();
+
+            foreach (var msgType in messageTypes)
             {
-                dynPublish!.MakeGenericMethod(method.Value.MessageType).Invoke(null, [app]);
-                dynSend!.MakeGenericMethod(method.Value.MessageType).Invoke(null, [app]);
+                dynPublish!.MakeGenericMethod(msgType).Invoke(null, [app]);
+                dynSend!.MakeGenericMethod(msgType).Invoke(null, [app]);
             }
         }
 
         foreach (var service in Services)
+        foreach (var method in service.Methods)
         {
-            foreach (var method in service.Methods)
+            // no generics over http
+            if (method.Value.GetParameters().Length != 1
+                || method.Value.GetGenericArguments().Length > 0)
+                continue;
+
+            var retType = method.Value.ReturnType;
+            var reqType = method.Value.GetParameters()[0].ParameterType;
+
+            if (retType.GenericTypeArguments.Length == 0)
             {
-                // no generics over http
-                if (method.Value.GetParameters().Length != 1
-                    || method.Value.GetGenericArguments().Length > 0)
-                    continue;
-
-                var retType = method.Value.ReturnType;
-                var reqType = method.Value.GetParameters()[0].ParameterType;
-
-                if (retType.GenericTypeArguments.Length == 0)
-                {
-                    dynRequest!.MakeGenericMethod(reqType).Invoke(null, [app, service.Name, method.Value]);
-                }
-                else
-                {
-                    var resType = retType.GenericTypeArguments[0];
-                    dynRequestT!.MakeGenericMethod(reqType, resType).Invoke(null, [app, service.Name, method.Value]);
-                }
+                dynRequest!.MakeGenericMethod(reqType).Invoke(null, [app, service.Name, method.Value]);
+            }
+            else
+            {
+                var resType = retType.GenericTypeArguments[0];
+                dynRequestT!.MakeGenericMethod(reqType, resType).Invoke(null, [app, service.Name, method.Value]);
             }
         }
 

@@ -106,21 +106,21 @@ public class ServiceMeshOptions
     public Action<WebApplication, Type, Delegate> MapHttpPublishRoute { get; set; } =
         (app, type, handler) =>
         {
-            app.MapPost("/publish/" + type.Name, handler)
-                .WithTags("mesh");
+            app.MapPost("/api/publish/" + type.Name, handler)
+                .WithTags("publish");
         };
 
     public Action<WebApplication, Type, Delegate> MapHttpSendRoute { get; set; } =
         (app, type, handler) =>
         {
-            app.MapPost("/send/" + type.Name, handler)
-                .WithTags("mesh");
+            app.MapPost("/api/send/" + type.Name, handler)
+                .WithTags("send");
         };
 
     public Action<WebApplication, Type, Type?, string, MethodInfo, Delegate> MapHttpRequestRoute { get; set; } =
         (app, requestType, responseType, service, method, handler) =>
         {
-            app.MapPost("/service/" + service + "/" + method.Name, handler)
+            app.MapPost("/api/" + service + "/" + method.Name, handler)
                 .Produces(200, responseType)
                 .WithTags(service);
         };

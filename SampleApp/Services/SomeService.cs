@@ -1,11 +1,9 @@
 ﻿using System.Diagnostics;
 using System.Numerics;
-using Core.ServiceMesh.Abstractions;
 using SampleInterfaces;
 
 namespace SampleApp.Services;
 
-[ServiceMesh("someservice")]
 public class SomeService(ILogger<SomeService> logger) : ISomeService
 {
     public async Task<string> GetSomeString(int a, string b)

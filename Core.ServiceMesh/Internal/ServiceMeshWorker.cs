@@ -446,7 +446,7 @@ internal class ServiceMeshWorker(
 
     public async Task<T> RequestAsync<T>(MethodInfo info, object[] args)
     {
-        var attr = info.DeclaringType!.GetCustomAttribute<ServiceMeshAttribute>()!;
+        var attr = info.DeclaringType!.GetInterfaces().Single().GetCustomAttribute<ServiceMeshAttribute>()!;
 
         var subject = ApplyPrefix(options.ResolveService(attr, info));
 
@@ -486,7 +486,7 @@ internal class ServiceMeshWorker(
 
     public async Task RequestAsync(MethodInfo info, object[] args)
     {
-        var attr = info.DeclaringType!.GetCustomAttribute<ServiceMeshAttribute>()!;
+        var attr = info.DeclaringType!.GetInterfaces().Single().GetCustomAttribute<ServiceMeshAttribute>()!;
         var subject = ApplyPrefix(options.ResolveService(attr, info));
 
         var call = new ServiceInvocation
