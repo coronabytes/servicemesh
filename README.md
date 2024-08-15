@@ -30,7 +30,8 @@ builder.AddServiceMesh(options =>
 ```
 
 ## Service Interface
-
+- service interfaces go abstraction libs to be shared among your microservices
+- only Task and Task<T> supported as return type (no ValueTask)
 ```csharp
 [ServiceMesh("someservice")]
 public interface ISomeService
@@ -44,7 +45,6 @@ public interface ISomeService
 ## Service Implementation
 
 ```csharp
-[ServiceMesh("someservice")]
 public class SomeService(ILogger<SomeService> logger) : ISomeService
 {
     public async Task<string> GetSomeString(int a, string b)
@@ -87,6 +87,9 @@ public class DevController(ISomeService someService) : ControllerBase
 ```
 
 ## Events, Streams and Consumers
+- durable consumers need to have a unique name (so you can rename your class later on)
+- PublishAsync will await confirmation by nats broker
+- SendAsync means Fire and Forget
 
 ```csharp
 public record SomeCommand(string Name);
@@ -107,7 +110,50 @@ public class DevController(IServiceMesh mesh) : ControllerBase
     public async Task<IActionResult> Publish([FromQuery] string message)
     {
         await mesh.PublishAsync(new SomeCommand(message));
+        await mesh.SendAsync(new SomeCommand(message));
         return Ok();
     }
 }
 ```
+
+## (Experimental) HTTP Endpoints
+- to lazy to write controllers?
+- services and consumer messages may be exposed directly via http endpoints
+  - for services only methods with a single complex parameter are supported
+  - no generics
+  - no simple types
+
+# expose services and messages
+- for this example type ending with ..Command or ..Message
+```csharp
+app.MapServiceMesh(["Command", "Message"]);
+```
+
+# customize or filter http endpoints
+```csharp
+builder.AddServiceMesh(options =>
+{
+  options.MapHttpPublishRoute =
+        (app, type, handler) =>
+        {
+            app.MapPost("/api/publish/" + type.Name, handler)
+                .WithTags("publish");
+        };
+
+  options.MapHttpSendRoute =
+        (app, type, handler) =>
+        {
+            // no handlers without nats ack
+            //app.MapPost("/api/send/" + type.Name, handler).WithTags("send");
+        };
+
+  options.MapHttpRequestRoute = { get; set; } =
+        (app, requestType, responseType, service, method, handler) =>
+        {
+            app.MapPost("/api/" + service + "/" + method.Name, handler)
+                .Produces(200, responseType)
+                .WithTags(service);
+        };
+});
+```
+
