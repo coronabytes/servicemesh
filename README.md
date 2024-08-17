@@ -5,14 +5,16 @@
 dotnet add package Core.ServiceMesh
 ```
 # Service Mesh for ASP.NET Core
-- based on https://nats.io
-- service request reponse
+- interconnect microservices sync/async with ease
+  - based on https://nats.io
+- service request reponse pattern (sync)
   - strongly typed clients out of the box
-- event streaming
+- event streaming via NATS JetStream (async)
   - durable and transient consumers
+- open telemetry support
+  - supports local service traces in "AutoTrace" mode
 
 ## Initialization in ASP.NET Core
-
 ```csharp
 builder.AddServiceMesh(options =>
 {
@@ -30,8 +32,8 @@ builder.AddServiceMesh(options =>
 ```
 
 ## Service Interface
-- service interfaces go abstraction libs to be shared among your microservices
-- only Task and Task<T> supported as return type (no ValueTask)
+- service interfaces go into abstraction libs to be shared among your microservices
+- only Task and Task<T> supported as return type (no ValueTask yet)
 ```csharp
 [ServiceMesh("someservice")]
 public interface ISomeService
@@ -68,7 +70,8 @@ public class SomeService(ILogger<SomeService> logger) : ISomeService
 ```
 
 ## Service Invocation
-
+- inject service interface into your controllers/services
+- they are automatically proxied over nats when not available in the same container 
 ```csharp
 public class DevController(ISomeService someService) : ControllerBase
 {
@@ -123,13 +126,13 @@ public class DevController(IServiceMesh mesh) : ControllerBase
   - no generics
   - no simple types
 
-# expose services and messages
-- for this example type ending with ..Command or ..Message
+## expose services and messages
+- for this example types ending with ..Command or ..Message will be exposed as endpoints
 ```csharp
 app.MapServiceMesh(["Command", "Message"]);
 ```
 
-# customize or filter http endpoints
+## customize or filter http endpoints
 ```csharp
 builder.AddServiceMesh(options =>
 {
