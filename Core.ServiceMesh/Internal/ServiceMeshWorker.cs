@@ -11,6 +11,7 @@ using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using OpenTelemetry;
 using OpenTelemetry.Context.Propagation;
+using OpenTelemetry.Trace;
 
 namespace Core.ServiceMesh.Internal;
 
@@ -45,10 +46,10 @@ internal class ServiceMeshWorker(
                 new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
                 (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Producer, Activity.Current?.Context ?? default);
+        using var activity = ActivitySource.StartActivity($"PUB {message.GetType().Name}", ActivityKind.Producer, Activity.Current?.Context ?? default);
 
-        if (activity != null)
-            activity.DisplayName = subject;
+        //if (activity != null)
+        //    activity.DisplayName = subject;
 
         var res = await _jetStream.PublishAsync(subject, data, opts: new NatsJSPubOpts
         {
@@ -72,10 +73,10 @@ internal class ServiceMeshWorker(
                 new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
                 (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Producer, Activity.Current?.Context ?? default);
+        using var activity = ActivitySource.StartActivity($"PUB {message.GetType().Name}", ActivityKind.Producer, Activity.Current?.Context ?? default);
 
-        if (activity != null)
-            activity.DisplayName = subject;
+       // if (activity != null)
+       //     activity.DisplayName = subject;
 
         await nats.PublishAsync(subject, data, headers);
     }
@@ -290,9 +291,6 @@ internal class ServiceMeshWorker(
             using var activity =
                 ActivitySource.StartActivity("NATS", ActivityKind.Consumer, parentContext.ActivityContext);
 
-            if (activity != null)
-                activity.DisplayName = msg.Subject;
-
             try
             {
                 await using var scope = serviceProvider.CreateAsyncScope();
@@ -300,15 +298,25 @@ internal class ServiceMeshWorker(
 
                 if (consumer.Methods.TryGetValue(msg.Subject, out var info))
                 {
+                    if (activity != null)
+                        activity.DisplayName = $"SUB {info.MessageType.Name}";
+
                     var data = options.Deserialize(msg.Data!, info.MessageType, true);
 
                     dynamic awaitable = info.Method.Invoke(consumerInstance, [data, stoppingToken])!;
                     await awaitable;
+                    activity?.SetStatus(ActivityStatusCode.Ok);
+                }
+                else
+                {
+                    activity?.SetStatus(ActivityStatusCode.Error);
                 }
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, null);
+                activity?.SetStatus(ActivityStatusCode.Error);
+                activity?.RecordException(ex);
             }
         }
     }
@@ -339,6 +347,7 @@ internal class ServiceMeshWorker(
                 };
 
                 await msg.ReplyAsync<byte[]>([], headers);
+                activity?.SetStatus(ActivityStatusCode.Error);
             }
             else
             {
@@ -346,7 +355,7 @@ internal class ServiceMeshWorker(
                 var signatures = invocation.Signature.Select(options.ResolveType).ToArray();
 
                 if (activity != null)
-                    activity.DisplayName = $"{invocation.Service}.{invocation.Method}";
+                    activity.DisplayName = $"SUB {invocation.Service}.{invocation.Method}";
 
                 var args = new object[signatures.Length];
 
@@ -370,21 +379,25 @@ internal class ServiceMeshWorker(
                     if (method.ReturnType == typeof(Task))
                     {
                         await msg.ReplyAsync<byte[]>([]);
+                        activity?.SetStatus(ActivityStatusCode.Ok);
                     }
                     else
                     {
                         var res = awaitable.GetAwaiter().GetResult();
                         await msg.ReplyAsync<byte[]>(options.Serialize(res, true));
+                        activity?.SetStatus(ActivityStatusCode.Ok);
                     }
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
                     var headers = new NatsHeaders
                     {
-                        ["exception"] = e.Message
+                        ["exception"] = ex.Message
                     };
 
                     await msg.ReplyAsync<byte[]>([], headers);
+                    activity?.SetStatus(ActivityStatusCode.Error);
+                    activity?.RecordException(ex);
                 }
             }
         }
@@ -408,8 +421,9 @@ internal class ServiceMeshWorker(
             using var activity =
                 ActivitySource.StartActivity("NATS", ActivityKind.Consumer, parentContext.ActivityContext);
 
-            if (activity != null)
-                activity.DisplayName = msg.Subject;
+            activity?.SetTag("nats.delivered", msg.Metadata?.NumDelivered);
+            activity?.SetTag("nats.pending", msg.Metadata?.NumPending);
+            activity?.SetTag("nats.consumer", msg.Metadata?.Consumer);
 
             try
             {
@@ -418,11 +432,15 @@ internal class ServiceMeshWorker(
 
                 if (consumer.Methods.TryGetValue(msg.Subject, out var info))
                 {
+                    if (activity != null)
+                        activity.DisplayName = $"STREAM {info.MessageType.Name}";
+
                     var data = options.Deserialize(msg.Data!, info.MessageType, true);
 
                     dynamic awaitable = info.Method.Invoke(consumerInstance, [data, stoppingToken])!;
                     await awaitable;
                     await msg.AckAsync(cancellationToken: stoppingToken);
+                    activity?.SetStatus(ActivityStatusCode.Ok);
                 }
                 else
                 {
@@ -431,8 +449,10 @@ internal class ServiceMeshWorker(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, null);
                 await msg.NakAsync(cancellationToken: stoppingToken);
+                activity?.SetStatus(ActivityStatusCode.Error);
+                activity?.RecordException(ex);
+                logger.LogError(ex, null);
             }
         }
     }
@@ -468,10 +488,10 @@ internal class ServiceMeshWorker(
             new PropagationContext(activityContext, Baggage.Current), headers,
             (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Client, activityContext);
+        using var activity = ActivitySource.StartActivity($"REQ {call.Service}.{call.Method}", ActivityKind.Client, activityContext);
 
-        if (activity != null)
-            activity.DisplayName = $"{call.Service}.{call.Method}";
+        //if (activity != null)
+        //    activity.DisplayName = $"{call.Service}.{call.Method}";
 
         var res = await nats.RequestAsync<byte[], byte[]>(subject,
             body, replyOpts: new NatsSubOpts
@@ -508,10 +528,10 @@ internal class ServiceMeshWorker(
             new PropagationContext(activityContext, Baggage.Current), headers,
             (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity("NATS", ActivityKind.Client, activityContext);
+        using var activity = ActivitySource.StartActivity($"REQ {call.Service}.{call.Method}", ActivityKind.Client, activityContext);
 
-        if (activity != null)
-            activity.DisplayName = $"{call.Service}.{call.Method}";
+        //if (activity != null)
+        //    activity.DisplayName = $"";
 
         var res = await nats.RequestAsync<byte[], byte[]>(subject,
             body, replyOpts: new NatsSubOpts

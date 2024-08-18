@@ -1,6 +1,5 @@
 using Core.Observability;
 using Core.ServiceMesh;
-using Core.ServiceMesh.Abstractions;
 using SampleApp.Services;
 using SampleInterfaces;
 
@@ -27,7 +26,7 @@ builder.AddServiceMesh(options =>
     {
         config.MaxAge = TimeSpan.FromDays(1);
     };
-    options.InterfaceMode = ServiceInterfaceMode.Auto;
+    options.InterfaceMode = ServiceInterfaceMode.ForceRemote;
     options.Assemblies = [typeof(ISomeService).Assembly, typeof(SomeService).Assembly];
 });
 

@@ -22,13 +22,8 @@ public class TraceDispatchProxy : DispatchProxyAsync
         using var scope = ServiceProvider.CreateScope();
         var instance = scope.ServiceProvider.GetRequiredService(ImplementationType);
 
-        using var activity = ServiceMeshWorker.ActivitySource.StartActivity("REQ", ActivityKind.Internal, Activity.Current?.Context ?? default);
-
-        if (activity != null)
-        {
-            var attr = method.DeclaringType!.GetCustomAttribute<ServiceMeshAttribute>()!;
-            activity.DisplayName = $"{attr.Name}.{method.Name}";
-        }
+        var attr = method.DeclaringType!.GetInterfaces().Single().GetCustomAttribute<ServiceMeshAttribute>()!;
+        using var activity = ServiceMeshWorker.ActivitySource.StartActivity($"{attr.Name}.{method.Name}", ActivityKind.Internal, Activity.Current?.Context ?? default);
 
         return (Task)method.Invoke(instance, args)!;
     }
@@ -37,14 +32,15 @@ public class TraceDispatchProxy : DispatchProxyAsync
     {
         using var scope = ServiceProvider.CreateScope();
         var instance = scope.ServiceProvider.GetRequiredService(ImplementationType);
-        
-        using var activity = ServiceMeshWorker.ActivitySource.StartActivity("REQ", ActivityKind.Internal, Activity.Current?.Context ?? default);
 
-        if (activity != null)
-        {
-            var attr = method.DeclaringType!.GetCustomAttribute<ServiceMeshAttribute>()!;
-            activity.DisplayName = $"{attr.Name}.{method.Name}";
-        }
+        var attr = method.DeclaringType!.GetInterfaces().Single().GetCustomAttribute<ServiceMeshAttribute>()!;
+
+        using var activity = ServiceMeshWorker.ActivitySource.StartActivity($"{attr.Name}.{method.Name}", ActivityKind.Internal, Activity.Current?.Context ?? default);
+
+        //if (activity != null)
+        //{
+        //    activity.DisplayName = $"{attr.Name}.{method.Name}";
+        //}
 
         return (Task<T>)method.Invoke(instance, args)!;
     }
