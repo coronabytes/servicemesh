@@ -5,12 +5,14 @@ namespace Core.ServiceMesh.SourceGen.Model;
 
 internal readonly record struct ServiceDescription
 {
-    public readonly string Name;
+    public readonly string ClassName;
+    public readonly string ServiceName;
     public readonly ImmutableEquatableArray<MethodDescription> Methods;
 
-    public ServiceDescription(string name, List<MethodDescription> methods)
+    public ServiceDescription(string className, string service, List<MethodDescription> methods)
     {
-        Name = name;
+        ClassName = className;
+        ServiceName = service;
         Methods = new(methods);
     }
 }
