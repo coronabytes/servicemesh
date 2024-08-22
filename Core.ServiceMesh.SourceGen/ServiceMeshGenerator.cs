@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using Core.ServiceMesh.SourceGen.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -13,64 +16,73 @@ namespace Core.ServiceMesh.SourceGen
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
             var interfaces = context
-                .SyntaxProvider.ForAttributeWithMetadataName(
-                    "Core.ServiceMesh.Abstractions.ServiceMeshAttribute",
-                    (node, _) => node is InterfaceDeclarationSyntax,
-                    (ctx, _) => (ITypeSymbol)ctx.TargetSymbol
-                )
+                .SyntaxProvider.ForAttributeWithMetadataName("Core.ServiceMesh.Abstractions.ServiceMeshAttribute", Predicate, Transform)
                 .Collect();
 
             context.RegisterSourceOutput(interfaces, GenerateCode);
         }
 
+        private bool Predicate(SyntaxNode node, CancellationToken _)
+        {
+            return node is InterfaceDeclarationSyntax;
+        }
+
+        private ServiceDescription Transform(GeneratorAttributeSyntaxContext ctx, CancellationToken _)
+        {
+            var type = (ITypeSymbol)ctx.TargetSymbol;
+            var serviceName = type.Name;
+
+            var methods = type.GetMembers()
+                .Where(x => x.Kind == SymbolKind.Method)
+                .OfType<IMethodSymbol>()
+                .Where(x => x.DeclaredAccessibility == Accessibility.Public)
+                .Where(x => x.MethodKind == MethodKind.Ordinary)
+                .Where(x => !x.IsStatic)
+                .ToList();
+
+            return new ServiceDescription(serviceName, methods.Select(x=>
+            {
+                var methodName = x.Name;
+                var generics = x
+                    .TypeParameters.Select(arg => arg.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
+                    .ToList();
+                var parameters = x.Parameters.Select(x => x.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)).ToList();
+                var returnType = x.ReturnType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+                return new MethodDescription(methodName, returnType, parameters, generics);
+            }).ToList());
+        }
+
         private static void GenerateCode(
             SourceProductionContext context,
-            ImmutableArray<ITypeSymbol> enumerations
+            ImmutableArray<ServiceDescription> services
         )
         {
-            if (enumerations.IsDefaultOrEmpty) return;
+            if (services.IsDefaultOrEmpty) 
+                return;
 
-            foreach (var type in enumerations)
+            foreach (var service in services)
             {
-                var serviceName = type.Name;
+                var builder = new StringBuilder();
 
-                var methods = type.GetMembers()
-                    .Where(x => x.Kind == SymbolKind.Method)
-                    .OfType<IMethodSymbol>()
-                    .Where(x => x.DeclaredAccessibility == Accessibility.Public)
-                    .Where(x => x.MethodKind == MethodKind.Ordinary)
-                    .Where(x => !x.IsStatic).ToList();
+                builder.AppendLine($"public sealed class {service.Name}RemoteProxy(IServiceMesh mesh)");
+                builder.AppendLine("{");
 
-                var classImpl = new StringBuilder();
-
-                classImpl.AppendLine($"public sealed class {serviceName}RemoteProxy(IServiceMesh mesh)");
-                classImpl.AppendLine("{");
-
-                foreach (var method in methods)
+                foreach (var m in service.Methods)
                 {
-                    var methodName = method.Name;
-
-                    var generics = method
-                        .TypeParameters.Select(arg => arg.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
-                        .ToList();
-
-                    var parameters = method.Parameters.Select(x => x.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)).ToList();
-                    var returnType = method.ReturnType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-
                     var code = $@"
-    public {returnType} {methodName}{(generics.Any() ? "<" + string.Join(",", generics.Select(x => x)) + ">" : string.Empty)}({string.Join(", ", parameters.Select(x=>x))}) {{
+    public {m.Return} {m.Name}{(m.Generics.Any() ? "<" + string.Join(",", m.Generics.Select(x => x)) + ">" : string.Empty)}({string.Join(", ", m.Parameters.Select(x=>x))}) {{
         return mesh.DoStuff();
-    }}
-";
-                    classImpl.AppendLine(code);
-                    classImpl.AppendLine();
+    }}";
+                    builder.AppendLine(code);
                 }
 
-                classImpl.AppendLine("}");
+                builder.AppendLine("}");
 
-                var source = classImpl.ToString();
+                var source = builder.ToString();
+                source.ToString();
 
-                context.AddSource($"{Guid.NewGuid().ToString("N")}.g.cs", source);
+                //context.AddSource($"{Guid.NewGuid().ToString("N")}.g.cs", source);
             }
         }
     }
