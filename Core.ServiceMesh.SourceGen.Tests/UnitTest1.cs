@@ -14,6 +14,8 @@ public class UnitTest1
                      using System.Threading.Tasks;
                      using System.Numerics;
                      using Core.ServiceMesh.Abstractions;
+                     
+                     namespace SampleApp;
 
                      [ServiceMesh("someservice")]
                      public interface ISomeService

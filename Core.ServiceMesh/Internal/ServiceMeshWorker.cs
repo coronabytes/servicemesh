@@ -541,4 +541,19 @@ internal class ServiceMeshWorker(
 
         res.EnsureSuccess();
     }
+
+    public ValueTask<T> RequestAsync<T>(string subject, object[] args)
+    {
+        return ValueTask.FromResult(default(T)!);
+    }
+
+    public ValueTask RequestAsync(string subject, object[] args)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    public async IAsyncEnumerable<T> StreamAsync<T>(string subject, object[] args)
+    {
+        yield break;
+    }
 }
