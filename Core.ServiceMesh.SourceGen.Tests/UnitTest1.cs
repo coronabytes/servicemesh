@@ -25,14 +25,37 @@ public class UnitTest1
                          ValueTask<T> C<T>(T a, T b) where T : INumber<T>;
                          IAsyncEnumerable<string> D(string d);
                      }
+                     
+                     [ServiceMesh("someservice")]
+                     public class SomeService : ISomeService
+                     {
+                         public async ValueTask A(string a)
+                         {
+                            
+                         }
+                         public async ValueTask<string> B(string b)
+                         {
+                            return b + " " + b;
+                         }
+                         public async ValueTask<T> C<T>(T a, T b) where T : INumber<T>
+                         {
+                            return a + b;
+                         }
+                         public async IAsyncEnumerable<string> D(string d)
+                         {
+                            yield return "a";
+                            yield return "b";
+                            yield return "c";
+                         }
+                     }
                      """;
-        return TestHelper.Verify(source);
+        return TestHelper.VerifySourceGen(source);
     }
 }
 
 public static class TestHelper
 {
-    public static async Task Verify(string source)
+    public async static Task VerifySourceGen(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
 
@@ -47,7 +70,7 @@ public static class TestHelper
 
         var compilation = CSharpCompilation.Create(
             "SourceGeneratorTests",
-            new[] { syntaxTree },
+            [syntaxTree],
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
         );
@@ -61,9 +84,14 @@ public static class TestHelper
         var generator = new ServiceMeshGenerator();
 
         var driver = CSharpGeneratorDriver.Create(generator)
-            .RunGeneratorsAndUpdateCompilation(compilation, out _, out var _);
+            .RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out _);
 
-        var results = driver.GetRunResult().Results;
-        results.ToString();
+        foreach (var tree in outputCompilation.SyntaxTrees.Skip(1))
+        {
+            var genSource = tree.ToString();
+            var genErrors = tree.GetDiagnostics().Where(x => x.Severity == DiagnosticSeverity.Error);
+
+            Assert.Empty(genErrors);
+        }
     }
 }

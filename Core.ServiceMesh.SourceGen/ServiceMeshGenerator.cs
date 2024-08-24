@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
@@ -80,64 +81,101 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
         }).ToList(), GetUsings(typeSymbol).ToList());
     }
 
-    private static void GenerateCode(
-        SourceProductionContext context,
-        ImmutableArray<ServiceDescription> services
-    )
+    private static void GenerateCode(SourceProductionContext context, ImmutableArray<ServiceDescription> services)
     {
-        if (services.IsDefaultOrEmpty)
-            return;
-
         foreach (var service in services)
         {
-            var builder = new StringBuilder();
+            if (service.IsInterface)
+                BuildRemoteProxy(context, service);
+            else
+                BuildTraceProxy(context, service);
+        }
+    }
 
-            foreach (var use in service.Usings)
-                builder.AppendLine(use);
+    private static void BuildRemoteProxy(SourceProductionContext context, ServiceDescription service)
+    {
+        var builder = new StringBuilder();
 
+        foreach (var use in service.Usings)
+            builder.AppendLine(use);
+
+        builder.AppendLine();
+
+        if (!string.IsNullOrWhiteSpace(service.Namespace))
+        {
+            builder.AppendLine($"namespace {service.Namespace};");
+            builder.AppendLine();
+        }
+
+        builder.AppendLine($"public sealed class {service.ClassName}RemoteProxy(IServiceMesh mesh)");
+        builder.AppendLine("{");
+
+        foreach (var m in service.Methods)
+        {
+            builder.AppendLine();
+            var parameterEx = $"[{string.Join(", ", m.ParameterNames)}]";
+            var invoke = $"return await mesh.RequestAsync(subject, {parameterEx});";
+
+            if (m.Return.StartsWith("ValueTask<"))
+                invoke = $"return await mesh.RequestAsync<{m.ReturnArguments[0]}>(subject, {parameterEx});";
+
+            if (m.Return.StartsWith("IAsyncEnumerable<"))
+                invoke = $"""
+                          await foreach (var msg in mesh.StreamAsync<{m.ReturnArguments[0]}>(subject, {parameterEx}))
+                                      yield return msg;
+                          """;
+
+            var code = $$"""
+                             public async {{m.Return}} {{m.Name}}{{(m.Generics.Any() ? "<" + string.Join(",", m.Generics.Select(x => x)) + ">" : string.Empty)}}({{string.Join(", ", m.Parameters.Select(x => x))}}) {{(m.Constraints.Any() ? string.Join(", ", m.Constraints) : string.Empty)}}
+                             {
+                                 var subject = "{{service.ServiceName}}.{{m.Name}}.G{{m.Generics.Count}}P{{m.Parameters.Count}}";
+                                 {{invoke}}
+                             }
+                         """;
+            builder.AppendLine(code);
+        }
+
+        builder.AppendLine("}");
+
+        context.AddSource($"{Guid.NewGuid().ToString("N")}.g.cs", builder.ToString());
+    }
+
+    private static void BuildTraceProxy(SourceProductionContext context, ServiceDescription service)
+    {
+        var builder = new StringBuilder();
+
+        foreach (var use in service.Usings)
+            builder.AppendLine(use);
+
+        builder.AppendLine();
+
+        if (!string.IsNullOrWhiteSpace(service.Namespace))
+        {
+            builder.AppendLine($"namespace {service.Namespace};");
+            builder.AppendLine();
+        }
+
+        builder.AppendLine($"public sealed class {service.ClassName}TraceProxy({service.ClassName} svc)");
+        builder.AppendLine("{");
+
+        foreach (var m in service.Methods)
+        {
             builder.AppendLine();
 
-            if (!string.IsNullOrWhiteSpace(service.Namespace))
-            {
-                builder.AppendLine($"namespace {service.Namespace};");
-                builder.AppendLine();
-            }
+            var code = $$"""
+                             public {{m.Return}} {{m.Name}}{{(m.Generics.Any() ? "<" + string.Join(",", m.Generics.Select(x => x)) + ">" : string.Empty)}}({{string.Join(", ", m.Parameters.Select(x => x))}}) {{(m.Constraints.Any() ? string.Join(", ", m.Constraints) : string.Empty)}}
+                             {
+                                // activity start span
+                                return svc.{{m.Name}}({{string.Join(", ", m.ParameterNames)}}); 
+                             }
+                         """;
 
-            builder.AppendLine($"public sealed class {service.ClassName}RemoteProxy(IServiceMesh mesh)");
-            builder.AppendLine("{");
-
-            foreach (var m in service.Methods)
-            {
-                builder.AppendLine();
-                var parameterEx = $"[{string.Join(", ", m.ParameterNames)}]";
-                var invoke = $"return await mesh.RequestAsync(subject, {parameterEx});";
-
-                if (m.Return.StartsWith("ValueTask<"))
-                    invoke = $"return await mesh.RequestAsync<{m.ReturnArguments[0]}>(subject, {parameterEx});";
-
-                if (m.Return.StartsWith("IAsyncEnumerable<"))
-                    invoke = $"""
-                              await foreach (var msg in mesh.StreamAsync<{m.ReturnArguments[0]}>(subject, {parameterEx}))
-                                          yield return msg;
-                              """;
-
-                var code = $$"""
-                                 public async {{m.Return}} {{m.Name}}{{(m.Generics.Any() ? "<" + string.Join(",", m.Generics.Select(x => x)) + ">" : string.Empty)}}({{string.Join(", ", m.Parameters.Select(x => x))}}) {{(m.Constraints.Any() ? string.Join(", ", m.Constraints) : string.Empty)}}
-                                 {
-                                     var subject = "{{service.ServiceName}}.{{m.Name}}.G{{m.Generics.Count}}P{{m.Parameters.Count}}";
-                                     {{invoke}}
-                                 }
-                             """;
-                builder.AppendLine(code);
-            }
-
-            builder.AppendLine("}");
-
-            var source = builder.ToString();
-            source.ToString();
-
-            //context.AddSource($"{Guid.NewGuid().ToString("N")}.g.cs", source);
+            builder.AppendLine(code);
         }
+
+        builder.AppendLine("}");
+
+        context.AddSource($"{Guid.NewGuid().ToString("N")}.g.cs", builder.ToString());
     }
 
     private static IEnumerable<string> GetUsings(ISymbol classSymbol)

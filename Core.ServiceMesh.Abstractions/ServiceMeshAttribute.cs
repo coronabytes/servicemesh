@@ -1,6 +1,6 @@
 ﻿namespace Core.ServiceMesh.Abstractions
 {
-    [AttributeUsage(AttributeTargets.Interface)]
+    [AttributeUsage(AttributeTargets.Interface | AttributeTargets.Class)]
     public class ServiceMeshAttribute(string name) : Attribute
     {
         /// <summary>
