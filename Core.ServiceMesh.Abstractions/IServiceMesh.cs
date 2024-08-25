@@ -22,12 +22,7 @@ public interface IServiceMesh
     /// </summary>
     ValueTask SendAsync(object message);
 
-    [Obsolete]
-    Task<T> RequestAsync<T>(MethodInfo info, object[] args);
-    [Obsolete]
-    Task RequestAsync(MethodInfo info, object[] args);
-
-    ValueTask<T> RequestAsync<T>(string subject, object[] args);
-    ValueTask RequestAsync(string subject, object[] args);
-    IAsyncEnumerable<T> StreamAsync<T>(string subject, object[] args);
+    ValueTask<T> RequestAsync<T>(string subject, object[] args, Type[] generics);
+    ValueTask RequestAsync(string subject, object[] args, Type[] generics);
+    IAsyncEnumerable<T> StreamAsync<T>(string subject, object[] args, Type[] generics);
 }

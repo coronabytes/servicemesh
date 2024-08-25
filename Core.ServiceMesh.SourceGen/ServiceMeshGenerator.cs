@@ -107,21 +107,22 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
             builder.AppendLine();
         }
 
-        builder.AppendLine($"public sealed class {service.ClassName}RemoteProxy(IServiceMesh mesh)");
+        builder.AppendLine($"public sealed class {service.ClassName}RemoteProxy(IServiceMesh mesh) : {service.ClassName}");
         builder.AppendLine("{");
 
         foreach (var m in service.Methods)
         {
             builder.AppendLine();
             var parameterEx = $"[{string.Join(", ", m.ParameterNames)}]";
-            var invoke = $"return await mesh.RequestAsync(subject, {parameterEx});";
+            var genericsEx = $"[{string.Join(", ", m.Generics.Select(x=> $"typeof({x})"))}]";
+            var invoke = $"await mesh.RequestAsync(subject, {parameterEx}, {genericsEx});";
 
             if (m.Return.StartsWith("ValueTask<"))
-                invoke = $"return await mesh.RequestAsync<{m.ReturnArguments[0]}>(subject, {parameterEx});";
+                invoke = $"return await mesh.RequestAsync<{m.ReturnArguments[0]}>(subject, {parameterEx}, {genericsEx});";
 
             if (m.Return.StartsWith("IAsyncEnumerable<"))
                 invoke = $"""
-                          await foreach (var msg in mesh.StreamAsync<{m.ReturnArguments[0]}>(subject, {parameterEx}))
+                          await foreach (var msg in mesh.StreamAsync<{m.ReturnArguments[0]}>(subject, {parameterEx}, {genericsEx}))
                                       yield return msg;
                           """;
 
@@ -155,7 +156,7 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
             builder.AppendLine();
         }
 
-        builder.AppendLine($"public sealed class {service.ClassName}TraceProxy({service.ClassName} svc)");
+        builder.AppendLine($"public sealed class {service.ClassName}TraceProxy({service.ClassName} svc) : I{service.ClassName}");
         builder.AppendLine("{");
 
         foreach (var m in service.Methods)

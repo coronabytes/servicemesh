@@ -1,21 +1,23 @@
 ﻿using System.Diagnostics;
+using Core.ServiceMesh.Abstractions;
 using SampleInterfaces;
 
 namespace SampleApp.Services;
 
+[ServiceMesh("anotherservice")]
 public class AnotherService(ILogger<AnotherService> logger) : IAnotherService
 {
-    public Task<SampleResponse> SampleA(SampleRequest request)
+    public ValueTask<SampleResponse> SampleA(SampleRequest request)
     {
-        return Task.FromResult(new SampleResponse(request.Name + " " + request.Amount));
+        return ValueTask.FromResult(new SampleResponse(request.Name + " " + request.Amount));
     }
 
-    public Task<SampleResponse> SampleB(SampleRequest request)
+    public ValueTask<SampleResponse> SampleB(SampleRequest request)
     {
-        return Task.FromResult(new SampleResponse(request.Name + " " + request.Amount));
+        return ValueTask.FromResult(new SampleResponse(request.Name + " " + request.Amount));
     }
 
-    public async Task SampleC(SampleRequest request)
+    public async ValueTask SampleC(SampleRequest request)
     {
         Activity.Current?.AddEvent(new ActivityEvent("#1"));
         await Task.Delay(100);
