@@ -15,8 +15,8 @@ namespace Core.ServiceMesh.SourceGen;
 [Generator]
 public sealed class ServiceMeshGenerator : IIncrementalGenerator
 {
-    private const string QualifiedAttributeName = "Core.ServiceMesh.Abstractions.ServiceMeshAttribute";
     private const string AttributeName = "ServiceMeshAttribute";
+    private const string QualifiedAttributeName = $"Core.ServiceMesh.Abstractions.{AttributeName}";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -138,7 +138,7 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
 
         builder.AppendLine("}");
 
-        context.AddSource($"{Guid.NewGuid().ToString("N")}.g.cs", builder.ToString());
+        context.AddSource($"{Guid.NewGuid():N}.g.cs", builder.ToString());
     }
 
     private static void BuildTraceProxy(SourceProductionContext context, ServiceDescription service)
@@ -163,10 +163,11 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
         {
             builder.AppendLine();
 
+            // TODO: use await for correct trace?
             var code = $$"""
                              public {{m.Return}} {{m.Name}}{{(m.Generics.Any() ? "<" + string.Join(",", m.Generics.Select(x => x)) + ">" : string.Empty)}}({{string.Join(", ", m.Parameters.Select(x => x))}}) {{(m.Constraints.Any() ? string.Join(", ", m.Constraints) : string.Empty)}}
                              {
-                                // activity start span
+                                using var activity = ServiceMeshActivity.Source.StartActivity("REQ {{service.ServiceName}}.{{m.Name}}", ActivityKind.Internal, Activity.Current?.Context ?? default);
                                 return svc.{{m.Name}}({{string.Join(", ", m.ParameterNames)}}); 
                              }
                          """;
@@ -176,7 +177,7 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
 
         builder.AppendLine("}");
 
-        context.AddSource($"{Guid.NewGuid().ToString("N")}.g.cs", builder.ToString());
+        context.AddSource($"{Guid.NewGuid():N}.g.cs", builder.ToString());
     }
 
     private static IEnumerable<string> GetUsings(ISymbol classSymbol)

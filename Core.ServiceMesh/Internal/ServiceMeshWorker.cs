@@ -20,7 +20,6 @@ internal class ServiceMeshWorker(
     ILogger<ServiceMeshWorker> logger,
     ServiceMeshOptions options) : BackgroundService, IServiceMesh
 {
-    internal static readonly ActivitySource ActivitySource = new("core.servicemesh");
     private readonly NatsJSContext _jetStream = new(nats);
     private Channel<(NatsMsg<byte[]>, ConsumerRegistration)>? _broadcastChannel;
     private Channel<(NatsMsg<byte[]>, ServiceRegistration)>? _serviceChannel;
@@ -28,7 +27,12 @@ internal class ServiceMeshWorker(
 
     public T CreateProxy<T>() where T : class
     {
-        return default(T);
+        var remoteProxy = typeof(T).Assembly.GetType(typeof(T).FullName + "RemoteProxy");
+
+        if (remoteProxy == null)
+            throw new InvalidOperationException($"proxy was found for interface {typeof(T).FullName}");
+
+        return (T)Activator.CreateInstance(remoteProxy, args: [this])!;
     }
 
     public async ValueTask PublishAsync(object message,
@@ -45,7 +49,7 @@ internal class ServiceMeshWorker(
                 new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
                 (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity($"PUB {message.GetType().Name}", ActivityKind.Producer, Activity.Current?.Context ?? default);
+        using var activity = ServiceMeshActivity.Source.StartActivity($"PUB {message.GetType().Name}", ActivityKind.Producer, Activity.Current?.Context ?? default);
 
         //if (activity != null)
         //    activity.DisplayName = subject;
@@ -72,7 +76,7 @@ internal class ServiceMeshWorker(
                 new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
                 (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity($"PUB {message.GetType().Name}", ActivityKind.Producer, Activity.Current?.Context ?? default);
+        using var activity = ServiceMeshActivity.Source.StartActivity($"PUB {message.GetType().Name}", ActivityKind.Producer, Activity.Current?.Context ?? default);
 
         // if (activity != null)
         //     activity.DisplayName = subject;
@@ -288,7 +292,7 @@ internal class ServiceMeshWorker(
             Baggage.Current = parentContext.Baggage;
 
             using var activity =
-                ActivitySource.StartActivity("NATS", ActivityKind.Consumer, parentContext.ActivityContext);
+                ServiceMeshActivity.Source.StartActivity("NATS", ActivityKind.Consumer, parentContext.ActivityContext);
 
             try
             {
@@ -336,7 +340,7 @@ internal class ServiceMeshWorker(
             Baggage.Current = parentContext.Baggage;
 
             using var activity =
-                ActivitySource.StartActivity("NATS", ActivityKind.Server, parentContext.ActivityContext);
+                ServiceMeshActivity.Source.StartActivity("NATS", ActivityKind.Server, parentContext.ActivityContext);
 
             if (!reg.Methods.TryGetValue(msg.Subject, out var method))
             {
@@ -418,7 +422,7 @@ internal class ServiceMeshWorker(
             Baggage.Current = parentContext.Baggage;
 
             using var activity =
-                ActivitySource.StartActivity("NATS", ActivityKind.Consumer, parentContext.ActivityContext);
+                ServiceMeshActivity.Source.StartActivity("NATS", ActivityKind.Consumer, parentContext.ActivityContext);
 
             activity?.SetTag("nats.delivered", msg.Metadata?.NumDelivered);
             activity?.SetTag("nats.pending", msg.Metadata?.NumPending);
@@ -485,7 +489,7 @@ internal class ServiceMeshWorker(
             new PropagationContext(activityContext, Baggage.Current), headers,
             (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
+        using var activity = ServiceMeshActivity.Source.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
 
         //if (activity != null)
         //    activity.DisplayName = $"{call.Service}.{call.Method}";
@@ -524,7 +528,7 @@ internal class ServiceMeshWorker(
             new PropagationContext(activityContext, Baggage.Current), headers,
             (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
+        using var activity = ServiceMeshActivity.Source.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
 
         //if (activity != null)
         //    activity.DisplayName = $"";

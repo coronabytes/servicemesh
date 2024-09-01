@@ -85,6 +85,7 @@ public static class ServiceMeshExtensions
                     QueueGroup = applyPrefix(attr.Name)!
                 });
 
+                // todo: configurable lifetime
                 builder.Services.Add(new ServiceDescriptor(type, type, ServiceLifetime.Scoped));
             }
         }
@@ -92,42 +93,35 @@ public static class ServiceMeshExtensions
         if (options.InterfaceMode != ServiceInterfaceMode.None)
             foreach (var serviceInterface in interfaces)
             {
-                var remoteProxy = serviceInterface.Assembly.GetType(serviceInterface.FullName + "RemoteProxy");
-
-                if (remoteProxy != null)
-                    builder.Services.AddSingleton(serviceInterface, remoteProxy);
-
-                /*var impl = Services.FirstOrDefault(x => x.InterfaceType == serviceInterface);
+                var impl = Services.FirstOrDefault(x => x.InterfaceType == serviceInterface);
 
                 if (impl == null)
                 {
-                    var remoteProxy = aee
+                    var remoteProxy = serviceInterface.Assembly.GetType(serviceInterface.FullName + "RemoteProxy");
 
-                    builder.Services.AddSingleton(serviceInterface,
-                        DispatchProxyAsync.Create(serviceInterface, typeof(RemoteDispatchProxy)));
+                    if (remoteProxy != null)
+                        builder.Services.AddSingleton(serviceInterface, remoteProxy);
                 }
                 else
                 {
                     if (options.InterfaceMode == ServiceInterfaceMode.ForceRemote)
-                        builder.Services.AddSingleton(serviceInterface,
-                            DispatchProxyAsync.Create(serviceInterface, typeof(RemoteDispatchProxy)));
+                    {
+                        var remoteProxy = serviceInterface.Assembly.GetType(serviceInterface.FullName + "RemoteProxy");
+
+                        if (remoteProxy != null)
+                            builder.Services.AddSingleton(serviceInterface, remoteProxy);
+                    }
                     else if (options.InterfaceMode == ServiceInterfaceMode.AutoTrace)
-                        builder.Services.AddSingleton(serviceInterface, sp =>
-                        {
-                            var proxy = DispatchProxyAsync.Create(serviceInterface, typeof(TraceDispatchProxy));
+                    {
+                        var traceProxy = serviceInterface.Assembly.GetType(impl.ImplementationType.FullName + "TraceProxy");
 
-                            if (proxy is TraceDispatchProxy traceProxy)
-                            {
-                                traceProxy.ServiceProvider = sp;
-                                traceProxy.ImplementationType = impl.ImplementationType;
-                            }
-
-                            return proxy;
-                        });
+                        if (traceProxy != null)
+                            builder.Services.AddSingleton(serviceInterface, traceProxy);
+                    }
                     else
                         builder.Services.Add(new ServiceDescriptor(serviceInterface, impl.ImplementationType,
                             ServiceLifetime.Scoped));
-                }*/
+                }
             }
 
         foreach (var consumer in asms.SelectMany(asm => asm.GetTypes().Where(x => x.GetInterfaces()

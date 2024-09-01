@@ -25,4 +25,6 @@ public interface IServiceMesh
     ValueTask<T> RequestAsync<T>(string subject, object[] args, Type[] generics);
     ValueTask RequestAsync(string subject, object[] args, Type[] generics);
     IAsyncEnumerable<T> StreamAsync<T>(string subject, object[] args, Type[] generics);
+
+
 }
