@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
 	  <Authors>Andreas Dominik Jung</Authors>
 	  <Copyright>Andreas Dominik Jung</Copyright>
-	  <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+	  <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 	  <PackageId>Core.ServiceMesh</PackageId>
 	  <PackageTags>service-mesh nats</PackageTags>
 	  <PackageReleaseNotes></PackageReleaseNotes>
