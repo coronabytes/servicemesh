@@ -4,6 +4,22 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>12</LangVersion>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <Authors>Andreas Dominik Jung</Authors>
+    <Copyright>Andreas Dominik Jung</Copyright>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>Core.ServiceMesh.SourceGen</PackageId>
+    <PackageTags>service-mesh nats</PackageTags>
+    <PackageReleaseNotes></PackageReleaseNotes>
+    <Description>.NET nats based services mesh and streams</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Version>1.0.0</Version>
+    <PackageProjectUrl>https://github.com/coronabytes/servicemesh</PackageProjectUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <RepositoryUrl>https://github.com/coronabytes/servicemesh.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
