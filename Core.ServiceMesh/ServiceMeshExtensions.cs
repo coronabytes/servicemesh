@@ -2,12 +2,10 @@
 using System.Reflection;
 using Core.ServiceMesh.Abstractions;
 using Core.ServiceMesh.Internal;
-using Core.ServiceMesh.Proxy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using NATS.Client.Hosting;
 using OpenTelemetry.Trace;
 
@@ -87,6 +85,7 @@ public static class ServiceMeshExtensions
                     QueueGroup = applyPrefix(attr.Name)!
                 });
 
+                // todo: configurable lifetime
                 builder.Services.Add(new ServiceDescriptor(type, type, ServiceLifetime.Scoped));
             }
         }
@@ -98,27 +97,27 @@ public static class ServiceMeshExtensions
 
                 if (impl == null)
                 {
-                    builder.Services.AddSingleton(serviceInterface,
-                        DispatchProxyAsync.Create(serviceInterface, typeof(RemoteDispatchProxy)));
+                    var remoteProxy = serviceInterface.Assembly.GetType(serviceInterface.FullName + "RemoteProxy");
+
+                    if (remoteProxy != null)
+                        builder.Services.AddSingleton(serviceInterface, remoteProxy);
                 }
                 else
                 {
                     if (options.InterfaceMode == ServiceInterfaceMode.ForceRemote)
-                        builder.Services.AddSingleton(serviceInterface,
-                            DispatchProxyAsync.Create(serviceInterface, typeof(RemoteDispatchProxy)));
+                    {
+                        var remoteProxy = serviceInterface.Assembly.GetType(serviceInterface.FullName + "RemoteProxy");
+
+                        if (remoteProxy != null)
+                            builder.Services.AddSingleton(serviceInterface, remoteProxy);
+                    }
                     else if (options.InterfaceMode == ServiceInterfaceMode.AutoTrace)
-                        builder.Services.AddSingleton(serviceInterface, sp =>
-                        {
-                            var proxy = DispatchProxyAsync.Create(serviceInterface, typeof(TraceDispatchProxy));
+                    {
+                        var traceProxy = serviceInterface.Assembly.GetType(impl.ImplementationType.FullName + "TraceProxy");
 
-                            if (proxy is TraceDispatchProxy traceProxy)
-                            {
-                                traceProxy.ServiceProvider = sp;
-                                traceProxy.ImplementationType = impl.ImplementationType;
-                            }
-
-                            return proxy;
-                        });
+                        if (traceProxy != null)
+                            builder.Services.AddSingleton(serviceInterface, traceProxy);
+                    }
                     else
                         builder.Services.Add(new ServiceDescriptor(serviceInterface, impl.ImplementationType,
                             ServiceLifetime.Scoped));
@@ -184,7 +183,7 @@ public static class ServiceMeshExtensions
         return builder;
     }
 
-    internal static void DynamicPublish<T>(WebApplication app) where T : class
+    /*internal static void DynamicPublish<T>(WebApplication app) where T : class
     {
         var options = app.Services.GetRequiredService<ServiceMeshOptions>();
 
@@ -217,11 +216,11 @@ public static class ServiceMeshExtensions
         options.MapHttpRequestRoute(app, typeof(TReq), null, service, info,
             async ([FromBody] TReq value, [FromServices] IServiceMesh mesh) =>
             await mesh.RequestAsync(info, [value]));
-    }
+    }*/
 
     public static WebApplication MapServiceMesh(this WebApplication app, string[]? consumerSuffixes = null)
     {
-        var flags = BindingFlags.NonPublic | BindingFlags.Static;
+        /*var flags = BindingFlags.NonPublic | BindingFlags.Static;
 
         var dynPublish = typeof(ServiceMeshExtensions).GetMethod(nameof(DynamicPublish), flags);
         var dynSend = typeof(ServiceMeshExtensions).GetMethod(nameof(DynamicSend), flags);
@@ -263,7 +262,7 @@ public static class ServiceMeshExtensions
                 var resType = retType.GenericTypeArguments[0];
                 dynRequestT!.MakeGenericMethod(reqType, resType).Invoke(null, [app, service.Name, method.Value]);
             }
-        }
+        }*/
 
         return app;
     }

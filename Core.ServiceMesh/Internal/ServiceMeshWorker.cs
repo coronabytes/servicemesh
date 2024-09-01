@@ -2,7 +2,6 @@
 using System.Reflection;
 using System.Threading.Channels;
 using Core.ServiceMesh.Abstractions;
-using Core.ServiceMesh.Proxy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -21,7 +20,6 @@ internal class ServiceMeshWorker(
     ILogger<ServiceMeshWorker> logger,
     ServiceMeshOptions options) : BackgroundService, IServiceMesh
 {
-    internal static readonly ActivitySource ActivitySource = new("core.servicemesh");
     private readonly NatsJSContext _jetStream = new(nats);
     private Channel<(NatsMsg<byte[]>, ConsumerRegistration)>? _broadcastChannel;
     private Channel<(NatsMsg<byte[]>, ServiceRegistration)>? _serviceChannel;
@@ -29,7 +27,12 @@ internal class ServiceMeshWorker(
 
     public T CreateProxy<T>() where T : class
     {
-        return DispatchProxyAsync.Create<T, RemoteDispatchProxy>();
+        var remoteProxy = typeof(T).Assembly.GetType(typeof(T).FullName + "RemoteProxy");
+
+        if (remoteProxy == null)
+            throw new InvalidOperationException($"proxy was found for interface {typeof(T).FullName}");
+
+        return (T)Activator.CreateInstance(remoteProxy, args: [this])!;
     }
 
     public async ValueTask PublishAsync(object message,
@@ -46,7 +49,7 @@ internal class ServiceMeshWorker(
                 new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
                 (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity($"PUB {message.GetType().Name}", ActivityKind.Producer, Activity.Current?.Context ?? default);
+        using var activity = ServiceMeshActivity.Source.StartActivity($"PUB {message.GetType().Name}", ActivityKind.Producer, Activity.Current?.Context ?? default);
 
         //if (activity != null)
         //    activity.DisplayName = subject;
@@ -73,17 +76,17 @@ internal class ServiceMeshWorker(
                 new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
                 (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity($"PUB {message.GetType().Name}", ActivityKind.Producer, Activity.Current?.Context ?? default);
+        using var activity = ServiceMeshActivity.Source.StartActivity($"PUB {message.GetType().Name}", ActivityKind.Producer, Activity.Current?.Context ?? default);
 
-       // if (activity != null)
-       //     activity.DisplayName = subject;
+        // if (activity != null)
+        //     activity.DisplayName = subject;
 
         await nats.PublishAsync(subject, data, headers);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        RemoteDispatchProxy.Worker = this;
+        //RemoteDispatchProxy.Worker = this;
 
         _streamChannel = Channel.CreateBounded<(NatsJSMsg<byte[]>, ConsumerRegistration)>(10);
         _broadcastChannel = Channel.CreateBounded<(NatsMsg<byte[]>, ConsumerRegistration)>(10);
@@ -113,7 +116,7 @@ internal class ServiceMeshWorker(
                 var newcfg = new StreamConfig(stream.Key, mergedSubjects.ToList());
                 options.ConfigureStream(stream.Key, newcfg);
 
-                if (newcfg.Storage != oldcfg.Storage 
+                if (newcfg.Storage != oldcfg.Storage
                     || newcfg.Name != oldcfg.Name
                     || (newcfg.MaxConsumers != oldcfg.MaxConsumers && newcfg.MaxConsumers > 0)
                     || newcfg.Retention != oldcfg.Retention
@@ -125,7 +128,7 @@ internal class ServiceMeshWorker(
                     continue;
                 }
 
-                if (!mergedSubjects.SetEquals(subjects) 
+                if (!mergedSubjects.SetEquals(subjects)
                     || newcfg.MaxAge != oldcfg.MaxAge
                     || newcfg.MaxMsgs != oldcfg.MaxMsgs
                     || newcfg.MaxBytes != oldcfg.MaxBytes
@@ -289,7 +292,7 @@ internal class ServiceMeshWorker(
             Baggage.Current = parentContext.Baggage;
 
             using var activity =
-                ActivitySource.StartActivity("NATS", ActivityKind.Consumer, parentContext.ActivityContext);
+                ServiceMeshActivity.Source.StartActivity("NATS", ActivityKind.Consumer, parentContext.ActivityContext);
 
             try
             {
@@ -337,7 +340,7 @@ internal class ServiceMeshWorker(
             Baggage.Current = parentContext.Baggage;
 
             using var activity =
-                ActivitySource.StartActivity("NATS", ActivityKind.Server, parentContext.ActivityContext);
+                ServiceMeshActivity.Source.StartActivity("NATS", ActivityKind.Server, parentContext.ActivityContext);
 
             if (!reg.Methods.TryGetValue(msg.Subject, out var method))
             {
@@ -355,7 +358,7 @@ internal class ServiceMeshWorker(
                 var signatures = invocation.Signature.Select(options.ResolveType).ToArray();
 
                 if (activity != null)
-                    activity.DisplayName = $"SUB {invocation.Service}.{invocation.Method}";
+                    activity.DisplayName = $"SUB {msg.Subject}";
 
                 var args = new object[signatures.Length];
 
@@ -419,7 +422,7 @@ internal class ServiceMeshWorker(
             Baggage.Current = parentContext.Baggage;
 
             using var activity =
-                ActivitySource.StartActivity("NATS", ActivityKind.Consumer, parentContext.ActivityContext);
+                ServiceMeshActivity.Source.StartActivity("NATS", ActivityKind.Consumer, parentContext.ActivityContext);
 
             activity?.SetTag("nats.delivered", msg.Metadata?.NumDelivered);
             activity?.SetTag("nats.pending", msg.Metadata?.NumPending);
@@ -464,19 +467,17 @@ internal class ServiceMeshWorker(
         return a;
     }
 
-    public async Task<T> RequestAsync<T>(MethodInfo info, object[] args)
+    public async ValueTask<T> RequestAsync<T>(string subject, object[] args, Type[] generics)
     {
-        var attr = info.DeclaringType!.GetInterfaces().Single().GetCustomAttribute<ServiceMeshAttribute>()!;
-
-        var subject = ApplyPrefix(options.ResolveService(attr, info));
+        subject = ApplyPrefix(subject);
 
         var call = new ServiceInvocation
         {
-            Service = attr.Name,
-            Method = info.Name,
+            //Service = attr.Name,
+            //Method = info.Name,
             Signature = args.Select(x => x.GetType().AssemblyQualifiedName!).ToList(),
             Arguments = args.Select(x => options.Serialize(x, false)).ToList(),
-            Generics = info.GetGenericArguments().Select(x => x.AssemblyQualifiedName!).ToList()
+            Generics = generics.Select(x => x.AssemblyQualifiedName!).ToList()
         };
 
         var body = options.Serialize(call, true);
@@ -488,7 +489,7 @@ internal class ServiceMeshWorker(
             new PropagationContext(activityContext, Baggage.Current), headers,
             (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity($"REQ {call.Service}.{call.Method}", ActivityKind.Client, activityContext);
+        using var activity = ServiceMeshActivity.Source.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
 
         //if (activity != null)
         //    activity.DisplayName = $"{call.Service}.{call.Method}";
@@ -504,18 +505,17 @@ internal class ServiceMeshWorker(
         return (T)options.Deserialize(res.Data!, typeof(T), true)!;
     }
 
-    public async Task RequestAsync(MethodInfo info, object[] args)
+    public async ValueTask RequestAsync(string subject, object[] args, Type[] generics)
     {
-        var attr = info.DeclaringType!.GetInterfaces().Single().GetCustomAttribute<ServiceMeshAttribute>()!;
-        var subject = ApplyPrefix(options.ResolveService(attr, info));
+        subject = ApplyPrefix(subject);
 
         var call = new ServiceInvocation
         {
-            Service = attr.Name,
-            Method = info.Name,
+            //Service = attr.Name,
+            //Method = info.Name,
             Signature = args.Select(x => x.GetType().AssemblyQualifiedName!).ToList(),
             Arguments = args.Select(x => options.Serialize(x, false)).ToList(),
-            Generics = info.GetGenericArguments().Select(x => x.AssemblyQualifiedName!).ToList()
+            Generics = generics.Select(x => x.AssemblyQualifiedName!).ToList()
         };
 
         var body = options.Serialize(call, true);
@@ -528,7 +528,7 @@ internal class ServiceMeshWorker(
             new PropagationContext(activityContext, Baggage.Current), headers,
             (h, key, value) => { h[key] = value; });
 
-        using var activity = ActivitySource.StartActivity($"REQ {call.Service}.{call.Method}", ActivityKind.Client, activityContext);
+        using var activity = ServiceMeshActivity.Source.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
 
         //if (activity != null)
         //    activity.DisplayName = $"";
@@ -540,5 +540,10 @@ internal class ServiceMeshWorker(
             }, headers: headers);
 
         res.EnsureSuccess();
+    }
+
+    public async IAsyncEnumerable<T> StreamAsync<T>(string subject, object[] args, Type[] generics)
+    {
+        yield break;
     }
 }

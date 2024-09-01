@@ -5,9 +5,9 @@ namespace SampleInterfaces;
 [ServiceMesh("anotherservice")]
 public interface IAnotherService
 {
-    Task<SampleResponse> SampleA(SampleRequest request);
+    ValueTask<SampleResponse> SampleA(SampleRequest request);
 
-    Task<SampleResponse> SampleB(SampleRequest request);
+    ValueTask<SampleResponse> SampleB(SampleRequest request);
 
-    Task SampleC(SampleRequest request);
+    ValueTask SampleC(SampleRequest request);
 };

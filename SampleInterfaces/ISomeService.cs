@@ -6,8 +6,8 @@ namespace SampleInterfaces;
 [ServiceMesh("someservice")]
 public interface ISomeService
 {
-    Task<string> GetSomeString(int a, string b);
-    Task CreateSomeObject();
-    Task<T> GenericAdd<T>(T a, T b) where T : INumber<T>;
-    Task<SampleResponse> Sample(SampleRequest request);
+    ValueTask<string> GetSomeString(int a, string b);
+    ValueTask CreateSomeObject();
+    ValueTask<T> GenericAdd<T>(T a, T b) where T : INumber<T>;
+    ValueTask<SampleResponse> Sample(SampleRequest request);
 };

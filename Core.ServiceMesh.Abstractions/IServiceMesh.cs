@@ -22,6 +22,9 @@ public interface IServiceMesh
     /// </summary>
     ValueTask SendAsync(object message);
 
-    Task<T> RequestAsync<T>(MethodInfo info, object[] args);
-    Task RequestAsync(MethodInfo info, object[] args);
+    ValueTask<T> RequestAsync<T>(string subject, object[] args, Type[] generics);
+    ValueTask RequestAsync(string subject, object[] args, Type[] generics);
+    IAsyncEnumerable<T> StreamAsync<T>(string subject, object[] args, Type[] generics);
+
+
 }
