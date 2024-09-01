@@ -1,9 +1,18 @@
 [![Nuget](https://img.shields.io/nuget/v/Core.ServiceMesh)](https://www.nuget.org/packages/Core.ServiceMesh)
 [![Nuget](https://img.shields.io/nuget/dt/Core.ServiceMesh)](https://www.nuget.org/packages/Core.ServiceMesh)
 
+# Install containers
 ```
 dotnet add package Core.ServiceMesh
+dotnet add package Core.ServiceMesh.SourceGen
 ```
+
+# Install shared libraries
+```
+dotnet add package Core.ServiceMesh.Abstractions
+dotnet add package Core.ServiceMesh.SourceGen
+```
+
 # Service Mesh for ASP.NET Core
 - interconnect microservices sync/async with ease
   - based on https://nats.io
@@ -33,35 +42,36 @@ builder.AddServiceMesh(options =>
 
 ## Service Interface
 - service interfaces go into abstraction libs to be shared among your microservices
-- only Task and Task<T> supported as return type (no ValueTask yet)
+- only ValueTask and ValueTask<T> and IAsyncEnumarable<T> (soon) supported
 ```csharp
 [ServiceMesh("someservice")]
 public interface ISomeService
 {
-    Task<string> GetSomeString(int a, string b);
-    Task CreateSomeObject();
-    Task<T> GenericAdd<T>(T a, T b) where T : INumber<T>;
+    ValueTask<string> GetSomeString(int a, string b);
+    ValueTask CreateSomeObject();
+    ValueTask<T> GenericAdd<T>(T a, T b) where T : INumber<T>;
 };
 ```
 
 ## Service Implementation
 
 ```csharp
+[ServiceMesh("someservice")]
 public class SomeService(ILogger<SomeService> logger) : ISomeService
 {
-    public async Task<string> GetSomeString(int a, string b)
+    public async ValueTask<string> GetSomeString(int a, string b)
     {
         await Task.Delay(100);
         return b + " " + a;
     }
 
-    public async Task CreateSomeObject()
+    public async ValueTask CreateSomeObject()
     {
         await Task.Delay(100);
         logger.LogInformation(nameof(CreateSomeObject));
     }
 
-    public async Task<T> GenericAdd<T>(T a, T b) where T : INumber<T>
+    public async ValueTask<T> GenericAdd<T>(T a, T b) where T : INumber<T>
     {
         await Task.Delay(100);
         return a + b;
