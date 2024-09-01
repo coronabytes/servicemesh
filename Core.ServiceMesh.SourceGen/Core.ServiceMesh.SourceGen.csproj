@@ -3,10 +3,8 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>12</LangVersion>
-    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <Authors>Andreas Dominik Jung</Authors>
     <Copyright>Andreas Dominik Jung</Copyright>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>Core.ServiceMesh.SourceGen</PackageId>
     <PackageTags>service-mesh nats</PackageTags>
     <PackageReleaseNotes></PackageReleaseNotes>
@@ -20,8 +18,15 @@
     <RepositoryUrl>https://github.com/coronabytes/servicemesh.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <IsPackable>true</IsPackable>
+
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <IsRoslynComponent>true</IsRoslynComponent>
+    <EnableNETAnalyzers>True</EnableNETAnalyzers>
+    <AnalysisLevel>latest-Recommended</AnalysisLevel>
   </PropertyGroup>
 
   <ItemGroup>
