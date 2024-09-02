@@ -8,9 +8,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Core.ServiceMesh" Version="0.0.4" />
-    <PackageReference Include="Core.ServiceMesh.SourceGen" Version="0.0.4" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+    <PackageReference Include="Core.ServiceMesh" Version="0.0.7" />
+    <PackageReference Include="Core.ServiceMesh.SourceGen" Version="0.0.7">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.7.3" />
   </ItemGroup>
 
 </Project>
