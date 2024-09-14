@@ -11,4 +11,4 @@ public interface INugetService
     ValueTask<SampleResponse> SampleB(SampleRequest request);
 
     ValueTask SampleC(SampleRequest request);
-};
+}

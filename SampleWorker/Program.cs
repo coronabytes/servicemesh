@@ -4,15 +4,9 @@ using SampleWorker.Consumers;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.AddObservability(configureTracing: trace =>
-{
-    trace.AddServiceMeshInstrumentation();
-});
+builder.AddObservability(configureTracing: trace => { trace.AddServiceMeshInstrumentation(); });
 
-builder.Services.Configure<ObservabilityOptions>(options =>
-{
-
-});
+builder.Services.Configure<ObservabilityOptions>(options => { });
 
 builder.AddServiceMesh(options =>
 {
@@ -21,10 +15,7 @@ builder.AddServiceMesh(options =>
     {
         Url = "nats://localhost:4222"
     };
-    options.ConfigureStream = (name, config) =>
-    {
-        config.MaxAge = TimeSpan.FromDays(1);
-    };
+    options.ConfigureStream = (name, config) => { config.MaxAge = TimeSpan.FromDays(1); };
     options.InterfaceMode = ServiceInterfaceMode.None;
     options.Assemblies = [typeof(SomeCommandHandler).Assembly];
 });

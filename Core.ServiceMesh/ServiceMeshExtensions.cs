@@ -3,7 +3,6 @@ using System.Reflection;
 using Core.ServiceMesh.Abstractions;
 using Core.ServiceMesh.Internal;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Hosting;
@@ -51,7 +50,6 @@ public static class ServiceMeshExtensions
                          return y.GetCustomAttribute<ServiceMeshAttribute>() != null
                                 || y.GetInterfaces().Any(z => z.GetCustomAttribute<ServiceMeshAttribute>() != null);
                      })))
-        {
             if (type.IsInterface)
             {
                 interfaces.Add(type);
@@ -91,7 +89,6 @@ public static class ServiceMeshExtensions
                 // todo: configurable lifetime
                 builder.Services.Add(new ServiceDescriptor(type, type, ServiceLifetime.Scoped));
             }
-        }
 
         if (options.InterfaceMode != ServiceInterfaceMode.None)
             foreach (var serviceInterface in interfaces)
@@ -116,14 +113,17 @@ public static class ServiceMeshExtensions
                     }
                     else if (options.InterfaceMode == ServiceInterfaceMode.AutoTrace)
                     {
-                        var traceProxy = serviceInterface.Assembly.GetType(impl.ImplementationType.FullName + "TraceProxy");
+                        var traceProxy =
+                            serviceInterface.Assembly.GetType(impl.ImplementationType.FullName + "TraceProxy");
 
                         if (traceProxy != null)
                             builder.Services.AddSingleton(serviceInterface, traceProxy);
                     }
                     else
+                    {
                         builder.Services.Add(new ServiceDescriptor(serviceInterface, impl.ImplementationType,
                             ServiceLifetime.Scoped));
+                    }
                 }
             }
 

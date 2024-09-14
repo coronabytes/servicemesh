@@ -18,7 +18,7 @@ public class DevController(IServiceMesh mesh, ISomeService someService) : Contro
     [HttpPost("publish-other")]
     public async Task<IActionResult> PublishOther([FromQuery] string message, [FromQuery] int count = 1)
     {
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
             await mesh.PublishAsync(new SomeOtherCommand(message));
         return Ok();
     }

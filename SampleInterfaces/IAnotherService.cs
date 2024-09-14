@@ -10,4 +10,4 @@ public interface IAnotherService
     ValueTask<SampleResponse> SampleB(SampleRequest request);
 
     ValueTask SampleC(SampleRequest request);
-};
+}

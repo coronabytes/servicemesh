@@ -11,4 +11,4 @@ public interface ISomeService
     ValueTask<T> GenericAdd<T>(T a, T b) where T : INumber<T>;
     ValueTask<SampleResponse> Sample(SampleRequest request);
     IAsyncEnumerable<SampleResponse> StreamingResponse(SampleRequest request);
-};
+}

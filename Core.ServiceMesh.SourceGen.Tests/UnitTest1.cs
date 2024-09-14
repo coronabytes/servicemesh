@@ -14,7 +14,7 @@ public class UnitTest1
                      using System.Threading.Tasks;
                      using System.Numerics;
                      using Core.ServiceMesh.Abstractions;
-                     
+
                      namespace SampleApp;
 
                      [ServiceMesh("someservice")]
@@ -25,7 +25,7 @@ public class UnitTest1
                          ValueTask<T> C<T>(T a, T b) where T : INumber<T>;
                          IAsyncEnumerable<string> D(string d);
                      }
-                     
+
                      [ServiceMesh("someservice")]
                      public class SomeService : ISomeService
                      {
@@ -55,7 +55,7 @@ public class UnitTest1
 
 public static class TestHelper
 {
-    public async static Task VerifySourceGen(string source)
+    public static async Task VerifySourceGen(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
 

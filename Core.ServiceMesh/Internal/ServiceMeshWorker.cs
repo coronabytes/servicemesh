@@ -2,7 +2,6 @@
 using System.Reflection;
 using System.Threading.Channels;
 using Core.ServiceMesh.Abstractions;
-using Microsoft.AspNetCore.Mvc.Formatters.Xml;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -12,7 +11,6 @@ using NATS.Client.JetStream.Models;
 using OpenTelemetry;
 using OpenTelemetry.Context.Propagation;
 using OpenTelemetry.Trace;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Core.ServiceMesh.Internal;
 
@@ -34,7 +32,7 @@ internal class ServiceMeshWorker(
         if (remoteProxy == null)
             throw new InvalidOperationException($"proxy was found for interface {typeof(T).FullName}");
 
-        return (T)Activator.CreateInstance(remoteProxy, args: [this])!;
+        return (T)Activator.CreateInstance(remoteProxy, this)!;
     }
 
     public async ValueTask PublishAsync(object message,
@@ -51,7 +49,8 @@ internal class ServiceMeshWorker(
                 new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
                 (h, key, value) => { h[key] = value; });
 
-        using var activity = ServiceMeshActivity.Source.StartActivity($"PUB {message.GetType().Name}", ActivityKind.Producer, Activity.Current?.Context ?? default);
+        using var activity = ServiceMeshActivity.Source.StartActivity($"PUB {message.GetType().Name}",
+            ActivityKind.Producer, Activity.Current?.Context ?? default);
 
         //if (activity != null)
         //    activity.DisplayName = subject;
@@ -78,12 +77,128 @@ internal class ServiceMeshWorker(
                 new PropagationContext(Activity.Current.Context, Baggage.Current), headers,
                 (h, key, value) => { h[key] = value; });
 
-        using var activity = ServiceMeshActivity.Source.StartActivity($"PUB {message.GetType().Name}", ActivityKind.Producer, Activity.Current?.Context ?? default);
+        using var activity = ServiceMeshActivity.Source.StartActivity($"PUB {message.GetType().Name}",
+            ActivityKind.Producer, Activity.Current?.Context ?? default);
 
         // if (activity != null)
         //     activity.DisplayName = subject;
 
         await nats.PublishAsync(subject, data, headers);
+    }
+
+    public async ValueTask<T> RequestAsync<T>(string subject, object[] args, Type[] generics)
+    {
+        subject = ApplyPrefix(subject);
+
+        var call = new ServiceInvocation
+        {
+            //Service = attr.Name,
+            //Method = info.Name,
+            Signature = args.Select(x => x.GetType().AssemblyQualifiedName!).ToList(),
+            Arguments = args.Select(x => options.Serialize(x, false)).ToList(),
+            Generics = generics.Select(x => x.AssemblyQualifiedName!).ToList()
+        };
+
+        var body = options.Serialize(call, true);
+
+        var headers = new NatsHeaders();
+
+        var activityContext = Activity.Current?.Context ?? default;
+        Propagators.DefaultTextMapPropagator.Inject(
+            new PropagationContext(activityContext, Baggage.Current), headers,
+            (h, key, value) => { h[key] = value; });
+
+        using var activity =
+            ServiceMeshActivity.Source.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
+
+        //if (activity != null)
+        //    activity.DisplayName = $"{call.Service}.{call.Method}";
+
+        var res = await nats.RequestAsync<byte[], byte[]>(subject,
+            body, replyOpts: new NatsSubOpts
+            {
+                Timeout = TimeSpan.FromSeconds(30)
+            }, headers: headers);
+
+        res.EnsureSuccess();
+
+        return (T)options.Deserialize(res.Data!, typeof(T), true)!;
+    }
+
+    public async ValueTask RequestAsync(string subject, object[] args, Type[] generics)
+    {
+        subject = ApplyPrefix(subject);
+
+        var call = new ServiceInvocation
+        {
+            //Service = attr.Name,
+            //Method = info.Name,
+            Signature = args.Select(x => x.GetType().AssemblyQualifiedName!).ToList(),
+            Arguments = args.Select(x => options.Serialize(x, false)).ToList(),
+            Generics = generics.Select(x => x.AssemblyQualifiedName!).ToList()
+        };
+
+        var body = options.Serialize(call, true);
+
+        var headers = new NatsHeaders();
+
+        var activityContext = Activity.Current?.Context ?? default;
+
+        Propagators.DefaultTextMapPropagator.Inject(
+            new PropagationContext(activityContext, Baggage.Current), headers,
+            (h, key, value) => { h[key] = value; });
+
+        using var activity =
+            ServiceMeshActivity.Source.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
+
+        //if (activity != null)
+        //    activity.DisplayName = $"";
+
+        var res = await nats.RequestAsync<byte[], byte[]>(subject,
+            body, replyOpts: new NatsSubOpts
+            {
+                Timeout = TimeSpan.FromSeconds(30)
+            }, headers: headers);
+
+        res.EnsureSuccess();
+    }
+
+    public async IAsyncEnumerable<T> StreamAsync<T>(string subject, object[] args, Type[] generics)
+    {
+        subject = ApplyPrefix(subject);
+
+        var call = new ServiceInvocation
+        {
+            //Service = attr.Name,
+            //Method = info.Name,
+            Signature = args.Select(x => x.GetType().AssemblyQualifiedName!).ToList(),
+            Arguments = args.Select(x => options.Serialize(x, false)).ToList(),
+            Generics = generics.Select(x => x.AssemblyQualifiedName!).ToList()
+        };
+
+        var body = options.Serialize(call, true);
+
+        var headers = new NatsHeaders();
+
+        var activityContext = Activity.Current?.Context ?? default;
+        Propagators.DefaultTextMapPropagator.Inject(
+            new PropagationContext(activityContext, Baggage.Current), headers,
+            (h, key, value) => { h[key] = value; });
+
+        using var activity =
+            ServiceMeshActivity.Source.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
+
+        var subId = Guid.NewGuid().ToString("N");
+
+        headers["return-sub-id"] = subId;
+        await nats.PublishAsync(subject, body, headers);
+
+        await foreach (var msg in nats.SubscribeAsync<byte[]>(subId))
+        {
+            if (msg.Data == null)
+                yield break;
+            yield return (T)options.Deserialize(msg.Data!, typeof(T), true)!;
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -124,7 +239,7 @@ internal class ServiceMeshWorker(
                     || newcfg.Retention != oldcfg.Retention
                     || newcfg.DenyDelete != oldcfg.DenyDelete
                     || newcfg.DenyPurge != oldcfg.DenyPurge
-                    )
+                   )
                 {
                     logger.LogError("stream {0} cannot be updated", stream.Key);
                     continue;
@@ -145,10 +260,8 @@ internal class ServiceMeshWorker(
                     || newcfg.AllowRollupHdrs != oldcfg.AllowRollupHdrs
                     || newcfg.Republish != oldcfg.Republish
                     || newcfg.Compression != oldcfg.Compression
-                    )
-                {
+                   )
                     await _jetStream.UpdateStreamAsync(newcfg, stoppingToken);
-                }
             }
             catch (Exception)
             {
@@ -225,7 +338,8 @@ internal class ServiceMeshWorker(
                     IdleHeartbeat = TimeSpan.FromSeconds(5)
                 };
 
-                var modifiedConsumeOpts = options.ConfigureConsumer(durableConsumer.Name, newConsumerConfig, consumeOpts);
+                var modifiedConsumeOpts =
+                    options.ConfigureConsumer(durableConsumer.Name, newConsumerConfig, consumeOpts);
 
                 var con = await _jetStream
                     .CreateOrUpdateConsumerAsync(durableConsumer.Stream, newConsumerConfig, stoppingToken)
@@ -235,8 +349,8 @@ internal class ServiceMeshWorker(
             }
 
         foreach (var transientConsumer in ServiceMeshExtensions.Consumers.Where(x => !x.IsDurable))
-            foreach (var m in transientConsumer.Methods)
-                tasks.Add(TransientListener(transientConsumer, m.Key, stoppingToken));
+        foreach (var m in transientConsumer.Methods)
+            tasks.Add(TransientListener(transientConsumer, m.Key, stoppingToken));
 
         for (var i = 0; i < options.StreamWorkers; i++)
             tasks.Add(DurableWorker(stoppingToken));
@@ -274,7 +388,8 @@ internal class ServiceMeshWorker(
         string subject,
         CancellationToken stoppingToken)
     {
-        await foreach (var msg in nats.SubscribeAsync<byte[]>(subject, reg.QueueGroup, cancellationToken: stoppingToken))
+        await foreach
+            (var msg in nats.SubscribeAsync<byte[]>(subject, reg.QueueGroup, cancellationToken: stoppingToken))
             await _broadcastChannel!.Writer.WriteAsync((msg, reg), stoppingToken);
     }
 
@@ -376,13 +491,13 @@ internal class ServiceMeshWorker(
                 if (method.ReturnType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
                 {
                     var subId = msg.Headers["return-sub-id"].FirstOrDefault();
-                   
+
                     try
                     {
                         var resType = method.ReturnType.GenericTypeArguments[0];
 
                         var wrapper = typeof(ServiceMeshWorker).GetMethod(nameof(AsyncEnumerableWrapper),
-                            BindingFlags.NonPublic | BindingFlags.Instance)
+                                BindingFlags.NonPublic | BindingFlags.Instance)
                             .MakeGenericMethod(resType);
 
                         dynamic stream = method.Invoke(instance, args.ToArray());
@@ -397,7 +512,7 @@ internal class ServiceMeshWorker(
                             ["exception"] = ex.Message
                         };
 
-                        await nats.PublishAsync<byte[]>(subId,[], headers);
+                        await nats.PublishAsync<byte[]>(subId, [], headers);
                         activity?.SetStatus(ActivityStatusCode.Error);
                         activity?.RecordException(ex);
                     }
@@ -407,7 +522,8 @@ internal class ServiceMeshWorker(
                     try
                     {
                         if (method.IsGenericMethod)
-                            method = method.MakeGenericMethod(invocation.Generics.Select(options.ResolveType).ToArray()!);
+                            method = method.MakeGenericMethod(
+                                invocation.Generics.Select(options.ResolveType).ToArray()!);
 
                         dynamic awaitable = method.Invoke(instance, args.ToArray());
                         await awaitable;
@@ -510,117 +626,5 @@ internal class ServiceMeshWorker(
         if (options.Prefix != null)
             return $"{options.Prefix}-{a}";
         return a;
-    }
-
-    public async ValueTask<T> RequestAsync<T>(string subject, object[] args, Type[] generics)
-    {
-        subject = ApplyPrefix(subject);
-
-        var call = new ServiceInvocation
-        {
-            //Service = attr.Name,
-            //Method = info.Name,
-            Signature = args.Select(x => x.GetType().AssemblyQualifiedName!).ToList(),
-            Arguments = args.Select(x => options.Serialize(x, false)).ToList(),
-            Generics = generics.Select(x => x.AssemblyQualifiedName!).ToList()
-        };
-
-        var body = options.Serialize(call, true);
-
-        var headers = new NatsHeaders();
-
-        var activityContext = Activity.Current?.Context ?? default;
-        Propagators.DefaultTextMapPropagator.Inject(
-            new PropagationContext(activityContext, Baggage.Current), headers,
-            (h, key, value) => { h[key] = value; });
-
-        using var activity = ServiceMeshActivity.Source.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
-
-        //if (activity != null)
-        //    activity.DisplayName = $"{call.Service}.{call.Method}";
-
-        var res = await nats.RequestAsync<byte[], byte[]>(subject,
-            body, replyOpts: new NatsSubOpts
-            {
-                Timeout = TimeSpan.FromSeconds(30)
-            }, headers: headers);
-
-        res.EnsureSuccess();
-
-        return (T)options.Deserialize(res.Data!, typeof(T), true)!;
-    }
-
-    public async ValueTask RequestAsync(string subject, object[] args, Type[] generics)
-    {
-        subject = ApplyPrefix(subject);
-
-        var call = new ServiceInvocation
-        {
-            //Service = attr.Name,
-            //Method = info.Name,
-            Signature = args.Select(x => x.GetType().AssemblyQualifiedName!).ToList(),
-            Arguments = args.Select(x => options.Serialize(x, false)).ToList(),
-            Generics = generics.Select(x => x.AssemblyQualifiedName!).ToList()
-        };
-
-        var body = options.Serialize(call, true);
-
-        var headers = new NatsHeaders();
-
-        var activityContext = Activity.Current?.Context ?? default;
-
-        Propagators.DefaultTextMapPropagator.Inject(
-            new PropagationContext(activityContext, Baggage.Current), headers,
-            (h, key, value) => { h[key] = value; });
-
-        using var activity = ServiceMeshActivity.Source.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
-
-        //if (activity != null)
-        //    activity.DisplayName = $"";
-
-        var res = await nats.RequestAsync<byte[], byte[]>(subject,
-            body, replyOpts: new NatsSubOpts
-            {
-                Timeout = TimeSpan.FromSeconds(30)
-            }, headers: headers);
-
-        res.EnsureSuccess();
-    }
-
-    public async IAsyncEnumerable<T> StreamAsync<T>(string subject, object[] args, Type[] generics)
-    {
-        subject = ApplyPrefix(subject);
-
-        var call = new ServiceInvocation
-        {
-            //Service = attr.Name,
-            //Method = info.Name,
-            Signature = args.Select(x => x.GetType().AssemblyQualifiedName!).ToList(),
-            Arguments = args.Select(x => options.Serialize(x, false)).ToList(),
-            Generics = generics.Select(x => x.AssemblyQualifiedName!).ToList()
-        };
-
-        var body = options.Serialize(call, true);
-
-        var headers = new NatsHeaders();
-
-        var activityContext = Activity.Current?.Context ?? default;
-        Propagators.DefaultTextMapPropagator.Inject(
-            new PropagationContext(activityContext, Baggage.Current), headers,
-            (h, key, value) => { h[key] = value; });
-
-        using var activity = ServiceMeshActivity.Source.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
-
-        var subId = Guid.NewGuid().ToString("N");
-
-        headers["return-sub-id"] = subId;
-        await nats.PublishAsync(subject, body, headers: headers);
-
-        await foreach (var msg in nats.SubscribeAsync<byte[]>(subId))
-        {
-            if (msg.Data == null)
-                yield break;
-            yield return (T)options.Deserialize(msg.Data!, typeof(T), true)!;
-        }
     }
 }
