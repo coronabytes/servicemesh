@@ -12,6 +12,7 @@ using NATS.Client.JetStream.Models;
 using OpenTelemetry;
 using OpenTelemetry.Context.Propagation;
 using OpenTelemetry.Trace;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Core.ServiceMesh.Internal;
 
@@ -443,8 +444,11 @@ internal class ServiceMeshWorker(
     {
         await foreach (var val in stream)
         {
-            await nats.PublishAsync(sub, options.Serialize(val!, true));
+            var data = options.Serialize(val!, true);
+            await nats.PublishAsync(sub, data);
         }
+
+        await nats.PublishAsync(sub, Array.Empty<byte>());
     }
 
     private async Task DurableWorker(CancellationToken stoppingToken)
@@ -609,11 +613,13 @@ internal class ServiceMeshWorker(
 
         var subId = Guid.NewGuid().ToString("N");
 
-        headers["reply-sub-id"] = subId;
+        headers["return-sub-id"] = subId;
         await nats.PublishAsync(subject, body, headers: headers);
 
         await foreach (var msg in nats.SubscribeAsync<byte[]>(subId))
         {
+            if (msg.Data == null)
+                yield break;
             yield return (T)options.Deserialize(msg.Data!, typeof(T), true)!;
         }
     }
