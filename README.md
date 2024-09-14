@@ -1,13 +1,13 @@
 [![Nuget](https://img.shields.io/nuget/v/Core.ServiceMesh)](https://www.nuget.org/packages/Core.ServiceMesh)
 [![Nuget](https://img.shields.io/nuget/dt/Core.ServiceMesh)](https://www.nuget.org/packages/Core.ServiceMesh)
 
-# Install containers
+# Installation for containers
 ```
 dotnet add package Core.ServiceMesh
 dotnet add package Core.ServiceMesh.SourceGen
 ```
 
-# Install shared libraries
+# Install for shared libraries
 ```
 dotnet add package Core.ServiceMesh.Abstractions
 dotnet add package Core.ServiceMesh.SourceGen
@@ -16,8 +16,11 @@ dotnet add package Core.ServiceMesh.SourceGen
 # Service Mesh for ASP.NET Core
 - interconnect microservices sync/async with ease
   - based on https://nats.io
+- uses source generators for remote proxies
+  - this doesn't mean AOT is supported
 - service request reponse pattern (sync)
   - strongly typed clients out of the box
+  - response streaming with IAsyncEnumerable
 - event streaming via NATS JetStream (async)
   - durable and transient consumers
 - open telemetry support
@@ -41,8 +44,9 @@ builder.AddServiceMesh(options =>
 ```
 
 ## Service Interface
-- service interfaces go into abstraction libs to be shared among your microservices
-- only ValueTask and ValueTask<T> and IAsyncEnumarable<T> (soon) supported
+- service interfaces/contracts should be placed in abstraction libraries to be shared among your microservices
+- only ValueTask and ValueTask<T> and IAsyncEnumerable<T> supported
+- open generics with optional constraints are supported
 ```csharp
 [ServiceMesh("someservice")]
 public interface ISomeService
@@ -50,6 +54,7 @@ public interface ISomeService
     ValueTask<string> GetSomeString(int a, string b);
     ValueTask CreateSomeObject();
     ValueTask<T> GenericAdd<T>(T a, T b) where T : INumber<T>;
+    IAsyncEnumerable<string> StreamResponse();
 };
 ```
 
@@ -75,6 +80,16 @@ public class SomeService(ILogger<SomeService> logger) : ISomeService
     {
         await Task.Delay(100);
         return a + b;
+    }
+
+    public async IAsyncEnumerable<string> StreamResponse()
+    {
+        await Task.Delay(100);
+        yield return "a";
+        await Task.Delay(100);
+        yield return "b";
+        await Task.Delay(100);
+        yield return "c";
     }
 }
 ```
