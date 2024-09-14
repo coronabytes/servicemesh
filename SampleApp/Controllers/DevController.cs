@@ -55,4 +55,11 @@ public class DevController(IServiceMesh mesh, ISomeService someService) : Contro
     {
         return await someService.GenericAdd(a, b);
     }
+
+    [HttpPost("stream-response")]
+    public async IAsyncEnumerable<SampleResponse> StreamResponse()
+    {
+        await foreach (var res in someService.StreamingResponse(new SampleRequest("", 0)))
+            yield return res;
+    }
 }

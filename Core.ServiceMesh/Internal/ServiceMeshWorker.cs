@@ -2,6 +2,7 @@
 using System.Reflection;
 using System.Threading.Channels;
 using Core.ServiceMesh.Abstractions;
+using Microsoft.AspNetCore.Mvc.Formatters.Xml;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -371,38 +372,78 @@ internal class ServiceMeshWorker(
                 await using var scope = serviceProvider.CreateAsyncScope();
                 var instance = scope.ServiceProvider.GetRequiredService(reg.ImplementationType);
 
-                try
+                if (method.ReturnType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
                 {
-                    if (method.IsGenericMethod)
-                        method = method.MakeGenericMethod(invocation.Generics.Select(options.ResolveType).ToArray()!);
-
-                    dynamic awaitable = method.Invoke(instance, args.ToArray());
-                    await awaitable;
-
-                    if (method.ReturnType == typeof(Task))
+                    var subId = msg.Headers["return-sub-id"].FirstOrDefault();
+                   
+                    try
                     {
-                        await msg.ReplyAsync<byte[]>([]);
-                        activity?.SetStatus(ActivityStatusCode.Ok);
+                        var resType = method.ReturnType.GenericTypeArguments[0];
+
+                        var wrapper = typeof(ServiceMeshWorker).GetMethod(nameof(AsyncEnumerableWrapper),
+                            BindingFlags.NonPublic | BindingFlags.Instance)
+                            .MakeGenericMethod(resType);
+
+                        dynamic stream = method.Invoke(instance, args.ToArray());
+
+                        dynamic awaitable = wrapper.Invoke(this, [subId, stream]);
+                        await awaitable;
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        var res = awaitable.GetAwaiter().GetResult();
-                        await msg.ReplyAsync<byte[]>(options.Serialize(res, true));
-                        activity?.SetStatus(ActivityStatusCode.Ok);
+                        var headers = new NatsHeaders
+                        {
+                            ["exception"] = ex.Message
+                        };
+
+                        await nats.PublishAsync<byte[]>(subId,[], headers);
+                        activity?.SetStatus(ActivityStatusCode.Error);
+                        activity?.RecordException(ex);
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    var headers = new NatsHeaders
+                    try
                     {
-                        ["exception"] = ex.Message
-                    };
+                        if (method.IsGenericMethod)
+                            method = method.MakeGenericMethod(invocation.Generics.Select(options.ResolveType).ToArray()!);
 
-                    await msg.ReplyAsync<byte[]>([], headers);
-                    activity?.SetStatus(ActivityStatusCode.Error);
-                    activity?.RecordException(ex);
+                        dynamic awaitable = method.Invoke(instance, args.ToArray());
+                        await awaitable;
+
+                        if (method.ReturnType == typeof(Task))
+                        {
+                            await msg.ReplyAsync<byte[]>([]);
+                            activity?.SetStatus(ActivityStatusCode.Ok);
+                        }
+                        else
+                        {
+                            var res = awaitable.GetAwaiter().GetResult();
+                            await msg.ReplyAsync<byte[]>(options.Serialize(res, true));
+                            activity?.SetStatus(ActivityStatusCode.Ok);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        var headers = new NatsHeaders
+                        {
+                            ["exception"] = ex.Message
+                        };
+
+                        await msg.ReplyAsync<byte[]>([], headers);
+                        activity?.SetStatus(ActivityStatusCode.Error);
+                        activity?.RecordException(ex);
+                    }
                 }
             }
+        }
+    }
+
+    private async ValueTask AsyncEnumerableWrapper<T>(string sub, IAsyncEnumerable<T> stream)
+    {
+        await foreach (var val in stream)
+        {
+            await nats.PublishAsync(sub, options.Serialize(val!, true));
         }
     }
 
@@ -544,6 +585,36 @@ internal class ServiceMeshWorker(
 
     public async IAsyncEnumerable<T> StreamAsync<T>(string subject, object[] args, Type[] generics)
     {
-        yield break;
+        subject = ApplyPrefix(subject);
+
+        var call = new ServiceInvocation
+        {
+            //Service = attr.Name,
+            //Method = info.Name,
+            Signature = args.Select(x => x.GetType().AssemblyQualifiedName!).ToList(),
+            Arguments = args.Select(x => options.Serialize(x, false)).ToList(),
+            Generics = generics.Select(x => x.AssemblyQualifiedName!).ToList()
+        };
+
+        var body = options.Serialize(call, true);
+
+        var headers = new NatsHeaders();
+
+        var activityContext = Activity.Current?.Context ?? default;
+        Propagators.DefaultTextMapPropagator.Inject(
+            new PropagationContext(activityContext, Baggage.Current), headers,
+            (h, key, value) => { h[key] = value; });
+
+        using var activity = ServiceMeshActivity.Source.StartActivity($"REQ {subject}", ActivityKind.Client, activityContext);
+
+        var subId = Guid.NewGuid().ToString("N");
+
+        headers["reply-sub-id"] = subId;
+        await nats.PublishAsync(subject, body, headers: headers);
+
+        await foreach (var msg in nats.SubscribeAsync<byte[]>(subId))
+        {
+            yield return (T)options.Deserialize(msg.Data!, typeof(T), true)!;
+        }
     }
 }

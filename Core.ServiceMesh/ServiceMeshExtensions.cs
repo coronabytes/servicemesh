@@ -60,7 +60,10 @@ public static class ServiceMeshExtensions
             {
                 // TODO: multiple service implementations?
                 var itype = type.GetInterfaces().Single();
-                var attr = itype.GetCustomAttribute<ServiceMeshAttribute>()!;
+                var attr = itype.GetCustomAttribute<ServiceMeshAttribute>();
+
+                if (type.Name.EndsWith("RemoteProxy") || type.Name.EndsWith("TraceProxy"))
+                    continue;
 
                 var methods = type.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance);
                 var dic = new Dictionary<string, MethodInfo>();

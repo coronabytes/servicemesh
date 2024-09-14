@@ -33,4 +33,14 @@ public class SomeService(ILogger<SomeService> logger) : ISomeService
     {
         return ValueTask.FromResult(new SampleResponse(request.Name + " " + request.Amount));
     }
+
+    public async IAsyncEnumerable<SampleResponse> StreamingResponse(SampleRequest request)
+    {
+        await Task.Delay(100);
+        yield return new SampleResponse("a");
+        await Task.Delay(100);
+        yield return new SampleResponse("b");
+        await Task.Delay(100);
+        yield return new SampleResponse("c");
+    }
 }
