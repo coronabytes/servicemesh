@@ -102,6 +102,7 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
             builder.AppendLine();
         }
 
+        builder.AppendLine("[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]");
         builder.AppendLine(
             $"public sealed class {service.ClassName}RemoteProxy(IServiceMesh mesh) : {service.ClassName}");
         builder.AppendLine("{");
@@ -135,7 +136,7 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
 
         builder.AppendLine("}");
 
-        context.AddSource($"{Guid.NewGuid():N}.g.cs", builder.ToString());
+        context.AddSource($"{service.Namespace}.{service.ClassName}RemoteProxy.g.cs", builder.ToString());
     }
 
     private static void BuildTraceProxy(SourceProductionContext context, ServiceDescription service)
@@ -153,6 +154,7 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
             builder.AppendLine();
         }
 
+        builder.AppendLine("[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]");
         builder.AppendLine(
             $"public sealed class {service.ClassName}TraceProxy({service.ClassName} svc) : I{service.ClassName}");
         builder.AppendLine("{");
@@ -175,7 +177,7 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
 
         builder.AppendLine("}");
 
-        context.AddSource($"{Guid.NewGuid():N}.g.cs", builder.ToString());
+        context.AddSource($"{service.Namespace}.{service.ClassName}TraceProxy.g.cs", builder.ToString());
     }
 
     private static IEnumerable<string> GetUsings(ISymbol classSymbol)
