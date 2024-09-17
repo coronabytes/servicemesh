@@ -45,7 +45,7 @@ builder.AddServiceMesh(options =>
 
 ## Service Interface
 - service interfaces/contracts should be placed in abstraction libraries to be shared among your microservices
-- only ValueTask and ValueTask<T> and IAsyncEnumerable<T> supported
+- only ValueTask and ValueTask\<T\> and IAsyncEnumerable<T> supported
 - open generics with optional constraints are supported
 ```csharp
 [ServiceMesh("someservice")]
