@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using Core.ServiceMesh.SourceGen.Core;
 using Core.ServiceMesh.SourceGen.Model;
 using Microsoft.CodeAnalysis;
@@ -105,7 +107,7 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
         builder.AppendLine("[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]");
         builder.AppendLine(
             $"public sealed class {service.ClassName}RemoteProxy(IServiceMesh mesh) : {service.ClassName}");
-        builder.AppendLine("{");
+        builder.Append("{");
 
         foreach (var m in service.Methods)
         {
@@ -114,7 +116,7 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
             var genericsEx = $"[{string.Join(", ", m.Generics.Select(x => $"typeof({x})"))}]";
             var invoke = $"await mesh.RequestAsync(subject, {parameterEx}, {genericsEx});";
 
-            if (m.Return.StartsWith("ValueTask<"))
+            if (m.Return.StartsWith("ValueTask<") || m.Return.StartsWith("Task<"))
                 invoke =
                     $"return await mesh.RequestAsync<{m.ReturnArguments[0]}>(subject, {parameterEx}, {genericsEx});";
 
@@ -157,18 +159,29 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
         builder.AppendLine("[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]");
         builder.AppendLine(
             $"public sealed class {service.ClassName}TraceProxy({service.ClassName} svc) : I{service.ClassName}");
-        builder.AppendLine("{");
+        builder.Append("{");
 
         foreach (var m in service.Methods)
         {
             builder.AppendLine();
 
-            // TODO: use await for correct trace?
+            var invoke = $"await svc.{m.Name}({string.Join(", ", m.ParameterNames)});";
+
+            if (m.Return.StartsWith("ValueTask<") || m.Return.StartsWith("Task<"))
+                invoke =
+                    $"return await svc.{m.Name}({string.Join(", ", m.ParameterNames)});";
+
+            if (m.Return.StartsWith("IAsyncEnumerable<"))
+                invoke = $"""
+                          await foreach (var msg in svc.{m.Name}({string.Join(", ", m.ParameterNames)}))
+                                      yield return msg;
+                          """;
+
             var code = $$"""
-                             public {{m.Return}} {{m.Name}}{{(m.Generics.Any() ? "<" + string.Join(",", m.Generics.Select(x => x)) + ">" : string.Empty)}}({{string.Join(", ", m.Parameters.Select(x => x))}}) {{(m.Constraints.Any() ? string.Join(", ", m.Constraints) : string.Empty)}}
+                             public async {{m.Return}} {{m.Name}}{{(m.Generics.Any() ? "<" + string.Join(",", m.Generics.Select(x => x)) + ">" : string.Empty)}}({{string.Join(", ", m.Parameters.Select(x => x))}}) {{(m.Constraints.Any() ? string.Join(", ", m.Constraints) : string.Empty)}}
                              {
                                 using var activity = ServiceMeshActivity.Source.StartActivity("REQ {{service.ServiceName}}.{{m.Name}}", ActivityKind.Internal, Activity.Current?.Context ?? default);
-                                return svc.{{m.Name}}({{string.Join(", ", m.ParameterNames)}}); 
+                                {{invoke}}
                              }
                          """;
 

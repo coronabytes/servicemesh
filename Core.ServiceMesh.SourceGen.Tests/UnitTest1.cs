@@ -21,9 +21,12 @@ public class UnitTest1
                      public interface ISomeService
                      {
                          ValueTask A(string a);
+                         Task Aa(string a);
                          ValueTask<string> B(string b);
+                         Task<string> Bb(string b);
                          ValueTask<T> C<T>(T a, T b) where T : INumber<T>;
                          IAsyncEnumerable<string> D(string d);
+                         IAsyncEnumerable<T> E<T>(T e) where T : INumber<T>;
                      }
 
                      [ServiceMesh("someservice")]
@@ -33,7 +36,15 @@ public class UnitTest1
                          {
                             
                          }
+                         public async Task Aa(string a)
+                         {
+                            
+                         }
                          public async ValueTask<string> B(string b)
+                         {
+                            return b + " " + b;
+                         }
+                         public async Task<string> Bb(string b)
                          {
                             return b + " " + b;
                          }
@@ -47,8 +58,15 @@ public class UnitTest1
                             yield return "b";
                             yield return "c";
                          }
+                         public async IAsyncEnumerable<T> E<T>(T e) where T : INumber<T>
+                         {
+                            yield return e;
+                            yield return e;
+                            yield return e;
+                         }
                      }
                      """;
+
         return TestHelper.VerifySourceGen(source);
     }
 }
