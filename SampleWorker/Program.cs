@@ -8,7 +8,7 @@ builder.AddObservability(configureTracing: trace => { trace.AddServiceMeshInstru
 
 builder.Services.Configure<ObservabilityOptions>(options => { });
 
-builder.AddServiceMesh(options =>
+builder.Services.AddServiceMesh(options =>
 {
     options.Prefix = "dev";
     options.ConfigureNats = opts => opts with

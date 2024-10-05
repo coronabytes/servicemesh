@@ -203,8 +203,6 @@ internal class ServiceMeshWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        //RemoteDispatchProxy.Worker = this;
-
         _streamChannel = Channel.CreateBounded<(NatsJSMsg<byte[]>, ConsumerRegistration)>(10);
         _broadcastChannel = Channel.CreateBounded<(NatsMsg<byte[]>, ConsumerRegistration)>(10);
         _serviceChannel = Channel.CreateBounded<(NatsMsg<byte[]>, ServiceRegistration)>(10);

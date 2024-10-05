@@ -4,6 +4,7 @@ using Core.ServiceMesh.Abstractions;
 using Core.ServiceMesh.Internal;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Hosting;
 using OpenTelemetry.Trace;
@@ -15,19 +16,19 @@ public static class ServiceMeshExtensions
     internal static readonly List<ConsumerRegistration> Consumers = new();
     internal static readonly List<ServiceRegistration> Services = new();
 
-    public static IHostApplicationBuilder AddServiceMesh(this IHostApplicationBuilder builder,
+    public static IServiceCollection AddServiceMesh(this IServiceCollection services,
         Action<ServiceMeshOptions> configure)
     {
         var options = new ServiceMeshOptions();
         configure(options);
 
-        builder.Services.AddNats(options.NatsPoolSize, opts => options.ConfigureNats(opts));
+        services.AddNats(options.NatsPoolSize, opts => options.ConfigureNats(opts));
 
-        builder.Services.AddSingleton(options);
-        builder.Services.AddSingleton<ServiceMeshWorker>();
-        builder.Services.AddSingleton<IServiceMesh, ServiceMeshWorker>(sp =>
+        services.AddSingleton(options);
+        services.AddSingleton<ServiceMeshWorker>();
+        services.AddSingleton<IServiceMesh, ServiceMeshWorker>(sp =>
             sp.GetRequiredService<ServiceMeshWorker>());
-        builder.Services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<ServiceMeshWorker>());
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<ServiceMeshWorker>());
 
         var asms = options.Assemblies.Distinct().ToList();
 
@@ -56,7 +57,6 @@ public static class ServiceMeshExtensions
             }
             else
             {
-                // TODO: multiple service implementations?
                 var itype = type.GetInterfaces().Single();
                 var attr = itype.GetCustomAttribute<ServiceMeshAttribute>();
 
@@ -86,8 +86,7 @@ public static class ServiceMeshExtensions
                     QueueGroup = applyPrefix(attr.Name)!
                 });
 
-                // todo: configurable lifetime
-                builder.Services.Add(new ServiceDescriptor(type, type, ServiceLifetime.Scoped));
+                services.Add(new ServiceDescriptor(type, type, ServiceLifetime.Scoped));
             }
 
         if (options.InterfaceMode != ServiceInterfaceMode.None)
@@ -100,7 +99,7 @@ public static class ServiceMeshExtensions
                     var remoteProxy = serviceInterface.Assembly.GetType(serviceInterface.FullName + "RemoteProxy");
 
                     if (remoteProxy != null)
-                        builder.Services.AddSingleton(serviceInterface, remoteProxy);
+                        services.AddSingleton(serviceInterface, remoteProxy);
                 }
                 else
                 {
@@ -109,7 +108,7 @@ public static class ServiceMeshExtensions
                         var remoteProxy = serviceInterface.Assembly.GetType(serviceInterface.FullName + "RemoteProxy");
 
                         if (remoteProxy != null)
-                            builder.Services.AddSingleton(serviceInterface, remoteProxy);
+                            services.AddSingleton(serviceInterface, remoteProxy);
                     }
                     else if (options.InterfaceMode == ServiceInterfaceMode.AutoTrace)
                     {
@@ -117,11 +116,11 @@ public static class ServiceMeshExtensions
                             serviceInterface.Assembly.GetType(impl.ImplementationType.FullName + "TraceProxy");
 
                         if (traceProxy != null)
-                            builder.Services.AddSingleton(serviceInterface, traceProxy);
+                            services.AddSingleton(serviceInterface, traceProxy);
                     }
                     else
                     {
-                        builder.Services.Add(new ServiceDescriptor(serviceInterface, impl.ImplementationType,
+                        services.Add(new ServiceDescriptor(serviceInterface, impl.ImplementationType,
                             ServiceLifetime.Scoped));
                     }
                 }
@@ -160,7 +159,7 @@ public static class ServiceMeshExtensions
             var obsolete = consumer.GetCustomAttribute<ObsoleteAttribute>() != null;
 
             if (!obsolete)
-                builder.Services.Add(new ServiceDescriptor(consumer, consumer, ServiceLifetime.Scoped));
+                services.Add(new ServiceDescriptor(consumer, consumer, ServiceLifetime.Scoped));
 
             Consumers.Add(new ConsumerRegistration
             {
@@ -177,7 +176,7 @@ public static class ServiceMeshExtensions
             });
         }
 
-        return builder;
+        return services;
     }
 
     public static TracerProviderBuilder AddServiceMeshInstrumentation(this TracerProviderBuilder builder)

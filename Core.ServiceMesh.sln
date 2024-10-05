@@ -17,7 +17,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core.ServiceMesh.SourceGen"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core.ServiceMesh.SourceGen.Tests", "Core.ServiceMesh.SourceGen.Tests\Core.ServiceMesh.SourceGen.Tests.csproj", "{0A12704F-4653-42B9-B4A5-D31BE66512A4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleAppNuget", "SampleAppNuget\SampleAppNuget.csproj", "{46F1E3ED-4BB2-4C40-B454-263B786C9D96}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core.ServiceMesh.Tests", "Core.ServiceMesh.Tests\Core.ServiceMesh.Tests.csproj", "{97B811EA-F1D8-4FCE-8855-00F3E36AE354}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -53,10 +53,10 @@ Global
 		{0A12704F-4653-42B9-B4A5-D31BE66512A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0A12704F-4653-42B9-B4A5-D31BE66512A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0A12704F-4653-42B9-B4A5-D31BE66512A4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{46F1E3ED-4BB2-4C40-B454-263B786C9D96}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{46F1E3ED-4BB2-4C40-B454-263B786C9D96}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{46F1E3ED-4BB2-4C40-B454-263B786C9D96}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{46F1E3ED-4BB2-4C40-B454-263B786C9D96}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97B811EA-F1D8-4FCE-8855-00F3E36AE354}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97B811EA-F1D8-4FCE-8855-00F3E36AE354}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97B811EA-F1D8-4FCE-8855-00F3E36AE354}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97B811EA-F1D8-4FCE-8855-00F3E36AE354}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
