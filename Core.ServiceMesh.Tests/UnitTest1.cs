@@ -1,8 +1,6 @@
 using Core.ServiceMesh.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using SampleInterfaces;
 using Xunit.Abstractions;
 
 namespace Core.ServiceMesh.Tests;
@@ -28,7 +26,7 @@ public class UnitTest1(ITestOutputHelper logger) : IAsyncLifetime
             };
             options.ConfigureStream = (name, config) => { config.MaxAge = TimeSpan.FromMinutes(10); };
             options.InterfaceMode = ServiceInterfaceMode.None;
-            options.Assemblies = [typeof(ISomeService).Assembly, typeof(SomeService).Assembly];
+            options.Assemblies = [typeof(ITestService).Assembly];
         });
 
         _serviceProvider = serviceCollection.BuildServiceProvider(true);
@@ -37,6 +35,7 @@ public class UnitTest1(ITestOutputHelper logger) : IAsyncLifetime
         _worker = (BackgroundService)_mesh;
         logger.WriteLine("starting background worker");
         await _worker.StartAsync(_cancellation.Token);
+        await Task.Delay(1000);
     }
 
     public async Task DisposeAsync()
@@ -55,9 +54,9 @@ public class UnitTest1(ITestOutputHelper logger) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Test1()
+    public async Task GenericAddInt()
     {
-        var someService = _mesh!.CreateProxy<ISomeService>();
+        var someService = _mesh!.CreateProxy<ITestService>();
 
         var res = await someService.GenericAdd(2, 4);
 
@@ -65,9 +64,9 @@ public class UnitTest1(ITestOutputHelper logger) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Test2()
+    public async Task GenericAddDecimal()
     {
-        var someService = _mesh!.CreateProxy<ISomeService>();
+        var someService = _mesh!.CreateProxy<ITestService>();
 
         var res = await someService.GenericAdd(6m, 6m);
 
@@ -75,15 +74,32 @@ public class UnitTest1(ITestOutputHelper logger) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Test3()
+    public async Task StreamResponse()
     {
-        var someService = _mesh!.CreateProxy<ISomeService>();
+        var someService = _mesh!.CreateProxy<ITestService>();
 
-        var list = new List<SampleResponse>();
+        var list1 = new List<int>();
 
-        await foreach (var r in someService.StreamingResponse(new SampleRequest("Bla", 133.7m)))
-            list.Add(r);
+        await foreach (var r in someService.StreamingResponse(3))
+            list1.Add(r);
 
-        Assert.Equal(3, list.Count);
+        Assert.Equal(3, list1.Count);
+
+        var list2 = new List<int>();
+
+        await foreach (var r in someService.StreamingResponse(5))
+            list2.Add(r);
+
+        Assert.Equal(5, list2.Count);
+    }
+
+    [Fact]
+    public async Task TaskTest()
+    {
+        await _mesh!.SendAsync(new TestTask(3));
+
+        var res = await TestTaskHandler.Source.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.True(res);
     }
 }

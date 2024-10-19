@@ -9,14 +9,12 @@
 
   <ItemGroup>
     <PackageReference Include="Core.Observability" Version="1.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Core.ServiceMesh\Core.ServiceMesh.csproj" />
     <ProjectReference Include="..\SampleInterfaces\SampleInterfaces.csproj" />
-    <ProjectReference Include="..\Core.ServiceMesh.SourceGen\Core.ServiceMesh.SourceGen.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Core.ServiceMesh.SourceGen\Core.ServiceMesh.SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

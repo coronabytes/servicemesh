@@ -30,7 +30,7 @@ internal class ServiceMeshWorker(
         var remoteProxy = typeof(T).Assembly.GetType(typeof(T).FullName + "RemoteProxy");
 
         if (remoteProxy == null)
-            throw new InvalidOperationException($"proxy was found for interface {typeof(T).FullName}");
+            throw new InvalidOperationException($"no proxy was found for interface {typeof(T).FullName}");
 
         return (T)Activator.CreateInstance(remoteProxy, this)!;
     }

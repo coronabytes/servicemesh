@@ -17,7 +17,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core.ServiceMesh.SourceGen"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core.ServiceMesh.SourceGen.Tests", "Core.ServiceMesh.SourceGen.Tests\Core.ServiceMesh.SourceGen.Tests.csproj", "{0A12704F-4653-42B9-B4A5-D31BE66512A4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core.ServiceMesh.Tests", "Core.ServiceMesh.Tests\Core.ServiceMesh.Tests.csproj", "{97B811EA-F1D8-4FCE-8855-00F3E36AE354}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core.ServiceMesh.Tests", "Core.ServiceMesh.Tests\Core.ServiceMesh.Tests.csproj", "{97B811EA-F1D8-4FCE-8855-00F3E36AE354}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{FC9AD5F9-41A9-4969-A28E-444396215298}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{81541BDD-70BC-44F7-AAF6-A68B587396FF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -60,6 +64,13 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{F4946728-0216-4997-925C-100FDF53F06F} = {FC9AD5F9-41A9-4969-A28E-444396215298}
+		{C54EB4C1-28CB-47F4-A7D1-533C3D943507} = {FC9AD5F9-41A9-4969-A28E-444396215298}
+		{3E1285C2-DE29-4591-8BE3-5D5684B1AA42} = {FC9AD5F9-41A9-4969-A28E-444396215298}
+		{0A12704F-4653-42B9-B4A5-D31BE66512A4} = {81541BDD-70BC-44F7-AAF6-A68B587396FF}
+		{97B811EA-F1D8-4FCE-8855-00F3E36AE354} = {81541BDD-70BC-44F7-AAF6-A68B587396FF}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {B7D4849A-51D6-46E9-BD53-F6A3A481F2CB}

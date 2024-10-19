@@ -166,6 +166,9 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
         foreach (var use in service.Usings)
             builder.AppendLine(use);
 
+        if (!service.Usings.Any(x=>x.Contains("System.Diagnostics")))
+            builder.AppendLine("using System.Diagnostics;");
+
         builder.AppendLine();
 
         if (!string.IsNullOrWhiteSpace(service.Namespace))

@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Core.Observability" Version="1.0.1" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.7.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
   </ItemGroup>
 
   <ItemGroup>
