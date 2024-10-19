@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Reflection.Metadata;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using Core.ServiceMesh.SourceGen.Core;
 using Core.ServiceMesh.SourceGen.Model;
 using Microsoft.CodeAnalysis;
@@ -41,7 +38,26 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
 
         var className = typeSymbol.Name;
         var attr = typeSymbol.GetAttributes().Single(x => x.AttributeClass!.Name == AttributeName);
-        var serviceName = (string)attr.ConstructorArguments[0].Value;
+        var serviceName = string.Empty;
+        var interfaceName = string.Empty;
+
+        if (!isInterface)
+        {
+            var interFace = typeSymbol.AllInterfaces.SingleOrDefault(x => x.GetAttributes()
+                .Any(y => y.AttributeClass!.Name == AttributeName));
+
+            if (interFace != null)
+            {
+                var attr2 = interFace.GetAttributes().Single(x => x.AttributeClass!.Name == AttributeName);
+                serviceName = (string)attr2.ConstructorArguments[0].Value;
+
+                interfaceName = interFace.Name;
+            }
+        }
+        else
+        {
+            serviceName = (string)attr.ConstructorArguments[0].Value;
+        }
 
         var methods = typeSymbol.GetMembers()
             .Where(x => x.Kind == SymbolKind.Method)
@@ -55,7 +71,7 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
             ? string.Empty
             : $"{typeSymbol.ContainingNamespace}";
 
-        return new ServiceDescription(isInterface, className, ns, serviceName, methods.Select(x =>
+        return new ServiceDescription(isInterface, className, interfaceName, ns, serviceName, methods.Select(x =>
         {
             var methodName = x.Name;
             var generics = x
@@ -114,22 +130,24 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
             builder.AppendLine();
             var parameterEx = $"[{string.Join(", ", m.ParameterNames)}]";
             var genericsEx = $"[{string.Join(", ", m.Generics.Select(x => $"typeof({x})"))}]";
-            var invoke = $"await mesh.RequestAsync(subject, {parameterEx}, {genericsEx});";
+
+            var subject = $"\"{service.ServiceName}.{m.Name}.G{m.Generics.Count}P{m.Parameters.Count}\"";
+
+            var invoke = $"await mesh.RequestAsync({subject}, {parameterEx}, {genericsEx});";
 
             if (m.Return.StartsWith("ValueTask<") || m.Return.StartsWith("Task<"))
                 invoke =
-                    $"return await mesh.RequestAsync<{m.ReturnArguments[0]}>(subject, {parameterEx}, {genericsEx});";
+                    $"return await mesh.RequestAsync<{m.ReturnArguments[0]}>({subject}, {parameterEx}, {genericsEx});";
 
             if (m.Return.StartsWith("IAsyncEnumerable<"))
                 invoke = $"""
-                          await foreach (var msg in mesh.StreamAsync<{m.ReturnArguments[0]}>(subject, {parameterEx}, {genericsEx}))
+                          await foreach (var msg in mesh.StreamAsync<{m.ReturnArguments[0]}>({subject}, {parameterEx}, {genericsEx}))
                                       yield return msg;
                           """;
 
             var code = $$"""
                              public async {{m.Return}} {{m.Name}}{{(m.Generics.Any() ? "<" + string.Join(",", m.Generics.Select(x => x)) + ">" : string.Empty)}}({{string.Join(", ", m.Parameters.Select(x => x))}}) {{(m.Constraints.Any() ? string.Join(", ", m.Constraints) : string.Empty)}}
                              {
-                                 var subject = "{{service.ServiceName}}.{{m.Name}}.G{{m.Generics.Count}}P{{m.Parameters.Count}}";
                                  {{invoke}}
                              }
                          """;
@@ -158,7 +176,7 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
 
         builder.AppendLine("[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]");
         builder.AppendLine(
-            $"public sealed class {service.ClassName}TraceProxy({service.ClassName} svc) : I{service.ClassName}");
+            $"public sealed class {service.ClassName}TraceProxy({service.ClassName} svc) : {service.InterFaceName}");
         builder.Append("{");
 
         foreach (var m in service.Methods)

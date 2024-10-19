@@ -4,7 +4,6 @@ using Core.ServiceMesh.Abstractions;
 using Core.ServiceMesh.Internal;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Hosting;
 using OpenTelemetry.Trace;
@@ -68,7 +67,9 @@ public static class ServiceMeshExtensions
 
                 foreach (var method in methods)
                 {
-                    var subject = applyPrefix(options.ResolveService(attr, method));
+                    var subject =
+                        applyPrefix(
+                            $"{attr.Name}.{method.Name}.G{method.GetGenericArguments().Length}P{method.GetParameters().Length}");
 
                     if (subject == null)
                         continue;

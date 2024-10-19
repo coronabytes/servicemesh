@@ -1,6 +1,5 @@
 ﻿using System.Reflection;
 using System.Text.Json;
-using Core.ServiceMesh.Abstractions;
 using K4os.Compression.LZ4;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -66,12 +65,6 @@ public class ServiceMeshOptions
     /// </summary>
     public Func<byte[], Type, bool, object?> Deserialize { get; set; } =
         (body, type, compress) => JsonSerializer.Deserialize(compress ? LZ4Pickler.Unpickle(body) : body, type);
-
-    /// <summary>
-    ///     Nats subject name from service mesh attribute + method info
-    /// </summary>
-    public Func<ServiceMeshAttribute, MethodInfo, string> ResolveService { get; set; } = (attr, info) =>
-        $"{attr.Name}.{info.Name}.G{info.GetGenericArguments().Length}P{info.GetParameters().Length}";
 
     /// <summary>
     ///     Nats subject for message
