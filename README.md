@@ -1,30 +1,30 @@
 [![Nuget](https://img.shields.io/nuget/v/Core.ServiceMesh)](https://www.nuget.org/packages/Core.ServiceMesh)
 [![Nuget](https://img.shields.io/nuget/dt/Core.ServiceMesh)](https://www.nuget.org/packages/Core.ServiceMesh)
 
-# Installation for containers
-```
+# Service Mesh for ASP.NET Core
+interconnect (Micro-)services in .NET with ease
+
+## Installation
+```sh
+# for shared libraries
+dotnet add package Core.ServiceMesh.Abstractions
+dotnet add package Core.ServiceMesh.SourceGen
+
+# for containers
 dotnet add package Core.ServiceMesh
 dotnet add package Core.ServiceMesh.SourceGen
 ```
 
-# Install for shared libraries
-```
-dotnet add package Core.ServiceMesh.Abstractions
-dotnet add package Core.ServiceMesh.SourceGen
-```
-
-# Service Mesh for ASP.NET Core
-- interconnect microservices sync/async with ease
-  - based on https://nats.io
-- uses source generators for remote proxies
-  - this doesn't mean AOT is supported
+## Features
+- based on https://nats.io
+- uses source generators for remote and telemetry proxies
 - service request reponse pattern (sync)
-  - strongly typed clients out of the box
-  - response streaming with IAsyncEnumerable
+- strongly typed clients out of the box
+- response streaming with IAsyncEnumerable
 - event streaming via NATS JetStream (async)
-  - durable and transient consumers
+- durable and transient consumers
 - open telemetry support
-  - supports local service traces in "AutoTrace" mode
+- supports local service traces in "AutoTrace" mode
 
 ## Initialization in ASP.NET Core
 ```csharp
@@ -61,7 +61,7 @@ public interface ISomeService
 ## Service Implementation
 
 ```csharp
-[ServiceMesh("someservice")]
+[ServiceMesh]
 public class SomeService(ILogger<SomeService> logger) : ISomeService
 {
     public async ValueTask<string> GetSomeString(int a, string b)
