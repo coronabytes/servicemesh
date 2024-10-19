@@ -69,7 +69,7 @@ public static class ServiceMeshExtensions
                 {
                     var subject =
                         applyPrefix(
-                            $"{attr.Name}.{method.Name}.G{method.GetGenericArguments().Length}P{method.GetParameters().Length}");
+                            $"{attr!.Name}.{method.Name}.G{method.GetGenericArguments().Length}P{method.GetParameters().Length}");
 
                     if (subject == null)
                         continue;
@@ -79,7 +79,7 @@ public static class ServiceMeshExtensions
 
                 Services.Add(new ServiceRegistration
                 {
-                    Name = attr.Name,
+                    Name = attr!.Name,
                     Sub = applyPrefix(attr.Name)!,
                     InterfaceType = itype,
                     ImplementationType = type,

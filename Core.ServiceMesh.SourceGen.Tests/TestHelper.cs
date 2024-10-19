@@ -6,12 +6,12 @@ namespace Core.ServiceMesh.SourceGen.Tests;
 
 public static class TestHelper
 {
-    public static async Task VerifySourceGen(string source)
+    public static Task VerifySourceGen(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
 
         // force reference
-        typeof(ServiceMeshAttribute).ToString();
+        var _ = typeof(ServiceMeshAttribute).ToString();
 
         var references = AppDomain
             .CurrentDomain.GetAssemblies()
@@ -34,8 +34,8 @@ public static class TestHelper
 
         var generator = new ServiceMeshGenerator();
 
-        var driver = CSharpGeneratorDriver.Create(generator)
-            .RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out _);
+        CSharpGeneratorDriver.Create(generator)
+            .RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var _);
 
         foreach (var tree in outputCompilation.SyntaxTrees.Skip(1))
         {
@@ -44,5 +44,7 @@ public static class TestHelper
 
             Assert.Empty(genErrors);
         }
+
+        return Task.CompletedTask;
     }
 }

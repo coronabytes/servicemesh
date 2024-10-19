@@ -399,7 +399,7 @@ internal class ServiceMeshWorker(
 
             var parentContext = Propagators.DefaultTextMapPropagator.Extract(default, msg.Headers, (headers, key) =>
             {
-                if (headers.TryGetValue(key, out var value))
+                if (headers!.TryGetValue(key, out var value))
                     return [value[0]];
 
                 return Array.Empty<string>();
@@ -447,7 +447,7 @@ internal class ServiceMeshWorker(
 
             var parentContext = Propagators.DefaultTextMapPropagator.Extract(default, msg.Headers, (headers, key) =>
             {
-                if (headers.TryGetValue(key, out var value))
+                if (headers!.TryGetValue(key, out var value))
                     return [value[0]];
 
                 return Array.Empty<string>();
@@ -479,8 +479,8 @@ internal class ServiceMeshWorker(
 
                 for (var i = 0; i < signatures.Length; i++)
                 {
-                    var sig = signatures[i];
-                    args[i] = options.Deserialize(invocation.Arguments[i], sig, false);
+                    var sig = signatures[i]!;
+                    args[i] = options.Deserialize(invocation.Arguments[i], sig, false)!;
                 }
 
                 await using var scope = serviceProvider.CreateAsyncScope();
@@ -488,19 +488,19 @@ internal class ServiceMeshWorker(
 
                 if (method.ReturnType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
                 {
-                    var subId = msg.Headers["return-sub-id"].FirstOrDefault();
+                    var subId = msg.Headers!["return-sub-id"].FirstOrDefault();
 
                     try
                     {
                         var resType = method.ReturnType.GenericTypeArguments[0];
 
                         var wrapper = typeof(ServiceMeshWorker).GetMethod(nameof(AsyncEnumerableWrapper),
-                                BindingFlags.NonPublic | BindingFlags.Instance)
+                                BindingFlags.NonPublic | BindingFlags.Instance)!
                             .MakeGenericMethod(resType);
 
-                        dynamic stream = method.Invoke(instance, args.ToArray());
+                        dynamic stream = method.Invoke(instance, args.ToArray())!;
 
-                        dynamic awaitable = wrapper.Invoke(this, [subId, stream]);
+                        dynamic awaitable = wrapper.Invoke(this, [subId, stream])!;
                         await awaitable;
                     }
                     catch (Exception ex)
@@ -510,7 +510,7 @@ internal class ServiceMeshWorker(
                             ["exception"] = ex.Message
                         };
 
-                        await nats.PublishAsync<byte[]>(subId, [], headers);
+                        await nats.PublishAsync<byte[]>(subId!, [], headers);
                         activity?.SetStatus(ActivityStatusCode.Error);
                         activity?.RecordException(ex);
                     }
@@ -523,7 +523,7 @@ internal class ServiceMeshWorker(
                             method = method.MakeGenericMethod(
                                 invocation.Generics.Select(options.ResolveType).ToArray()!);
 
-                        dynamic awaitable = method.Invoke(instance, args.ToArray());
+                        dynamic awaitable = method.Invoke(instance, args.ToArray())!;
                         await awaitable;
 
                         if (method.ReturnType == typeof(Task))
@@ -573,7 +573,7 @@ internal class ServiceMeshWorker(
 
             var parentContext = Propagators.DefaultTextMapPropagator.Extract(default, msg.Headers, (headers, key) =>
             {
-                if (headers.TryGetValue(key, out var value))
+                if (headers!.TryGetValue(key, out var value))
                     return [value[0]];
 
                 return Array.Empty<string>();

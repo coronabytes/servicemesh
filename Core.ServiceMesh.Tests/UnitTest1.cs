@@ -1,6 +1,7 @@
 using Core.ServiceMesh.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using SampleInterfaces;
 using Xunit.Abstractions;
 
@@ -10,9 +11,9 @@ namespace Core.ServiceMesh.Tests;
 public class UnitTest1(ITestOutputHelper logger) : IAsyncLifetime
 {
     private readonly CancellationTokenSource _cancellation = new();
-    private IServiceMesh _mesh;
-    private IServiceProvider _serviceProvider;
-    private BackgroundService _worker;
+    private IServiceMesh? _mesh;
+    private IServiceProvider? _serviceProvider;
+    private BackgroundService? _worker;
 
     public async Task InitializeAsync()
     {
@@ -34,16 +35,18 @@ public class UnitTest1(ITestOutputHelper logger) : IAsyncLifetime
         _mesh = _serviceProvider.GetRequiredService<IServiceMesh>();
 
         _worker = (BackgroundService)_mesh;
+        logger.WriteLine("starting background worker");
         await _worker.StartAsync(_cancellation.Token);
     }
 
     public async Task DisposeAsync()
     {
+        logger.WriteLine("aborting background worker");
         await _cancellation.CancelAsync();
 
         try
         {
-            await _worker.ExecuteTask!;
+            await _worker!.ExecuteTask!;
         }
         catch
         {
@@ -54,7 +57,7 @@ public class UnitTest1(ITestOutputHelper logger) : IAsyncLifetime
     [Fact]
     public async Task Test1()
     {
-        var someService = _mesh.CreateProxy<ISomeService>();
+        var someService = _mesh!.CreateProxy<ISomeService>();
 
         var res = await someService.GenericAdd(2, 4);
 
@@ -64,7 +67,7 @@ public class UnitTest1(ITestOutputHelper logger) : IAsyncLifetime
     [Fact]
     public async Task Test2()
     {
-        var someService = _mesh.CreateProxy<ISomeService>();
+        var someService = _mesh!.CreateProxy<ISomeService>();
 
         var res = await someService.GenericAdd(6m, 6m);
 
@@ -74,7 +77,7 @@ public class UnitTest1(ITestOutputHelper logger) : IAsyncLifetime
     [Fact]
     public async Task Test3()
     {
-        var someService = _mesh.CreateProxy<ISomeService>();
+        var someService = _mesh!.CreateProxy<ISomeService>();
 
         var list = new List<SampleResponse>();
 
