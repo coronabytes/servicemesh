@@ -4,7 +4,7 @@ using SampleInterfaces;
 
 namespace SampleApp.Services;
 
-[ServiceMesh("anotherservice")]
+[ServiceMesh]
 public class AnotherService(ILogger<AnotherService> logger) : IAnotherService
 {
     public ValueTask<SampleResponse> SampleA(SampleRequest request)

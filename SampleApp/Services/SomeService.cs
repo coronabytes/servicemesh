@@ -5,7 +5,7 @@ using SampleInterfaces;
 
 namespace SampleApp.Services;
 
-[ServiceMesh("someservice")]
+[ServiceMesh]
 public class SomeService(ILogger<SomeService> logger) : ISomeService
 {
     public async ValueTask<string> GetSomeString(int a, string b)
