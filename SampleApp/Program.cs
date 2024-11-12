@@ -2,11 +2,11 @@ using Core.Observability;
 using Core.ServiceMesh;
 using SampleApp.Services;
 using SampleInterfaces;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddObservability(configureTracing: trace => { trace.AddServiceMeshInstrumentation(); });
-
 builder.Services.Configure<ObservabilityOptions>(options => { });
 
 builder.Services.AddServiceMesh(options =>
@@ -22,18 +22,17 @@ builder.Services.AddServiceMesh(options =>
 });
 
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-app.UseSwagger();
-app.UseSwaggerUI();
+app.MapOpenApi();
+app.MapScalarApiReference();
 
 app.UseAuthorization();
 app.UseObservability();
 app.MapControllers();
 
-app.MapServiceMesh(["Command", "Message"]);
+//app.MapServiceMesh(["Command", "Message"]);
 
 app.Run();
