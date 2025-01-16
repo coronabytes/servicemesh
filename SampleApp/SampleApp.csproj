@@ -9,8 +9,8 @@
 
   <ItemGroup>
     <PackageReference Include="Core.Observability" Version="1.1.0" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
-    <PackageReference Include="Scalar.AspNetCore" Version="1.2.34" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.1" />
+    <PackageReference Include="Scalar.AspNetCore" Version="1.2.76" />
   </ItemGroup>
 
   <ItemGroup>
