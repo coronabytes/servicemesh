@@ -20,6 +20,7 @@
 	  <RepositoryUrl>https://github.com/coronabytes/servicemesh.git</RepositoryUrl>
 	  <RepositoryType>git</RepositoryType>
     <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>
