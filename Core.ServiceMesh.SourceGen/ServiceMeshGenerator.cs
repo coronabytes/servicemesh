@@ -64,8 +64,11 @@ public sealed class ServiceMeshGenerator : IIncrementalGenerator
             .OfType<IMethodSymbol>()
             .Where(x => x.DeclaredAccessibility == Accessibility.Public)
             .Where(x => x.MethodKind == MethodKind.Ordinary)
+            // ignore interface default implementations
+            .Where(x => !isInterface || !x.IsVirtual)
             .Where(x => !x.IsStatic)
             .ToList();
+
 
         var ns = typeSymbol.ContainingNamespace.IsGlobalNamespace
             ? string.Empty

@@ -23,6 +23,11 @@ public class SourceGenTest
                          ValueTask<T> C<T>(T a, T b) where T : INumber<T>;
                          IAsyncEnumerable<string> D(string d);
                          IAsyncEnumerable<T> E<T>(T e) where T : INumber<T>;
+                         
+                         ValueTask<string> IgnoreDefaultImpl(int a, string b)
+                         {
+                             return ValueTask.FromResult("nope");
+                         }
                      }
 
                      [ServiceMesh]
