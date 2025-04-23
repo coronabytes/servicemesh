@@ -27,7 +27,9 @@ public static class ServiceMeshExtensions
         services.AddSingleton<ServiceMeshWorker>();
         services.AddSingleton<IServiceMesh, ServiceMeshWorker>(sp =>
             sp.GetRequiredService<ServiceMeshWorker>());
-        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<ServiceMeshWorker>());
+
+        if (!options.DeveloperMode)
+            services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<ServiceMeshWorker>());
 
         var asms = options.Assemblies.Distinct().ToList();
 
@@ -127,57 +129,55 @@ public static class ServiceMeshExtensions
                 }
             }
 
-        if (!options.DeveloperMode)
+
+        foreach (var consumer in asms.SelectMany(asm => asm.GetTypes().Where(x => x.GetInterfaces()
+                     .Any(y => y.IsGenericType && y.GetGenericTypeDefinition() == typeof(IConsumer<>))).ToList()))
         {
-            foreach (var consumer in asms.SelectMany(asm => asm.GetTypes().Where(x => x.GetInterfaces()
-                         .Any(y => y.IsGenericType && y.GetGenericTypeDefinition() == typeof(IConsumer<>))).ToList()))
+            var durableAttribute = consumer.GetCustomAttribute<DurableConsumerAttribute>();
+            var transientAttribute = consumer.GetCustomAttribute<TransientConsumerAttribute>();
+
+            if (durableAttribute != null && transientAttribute != null)
+                continue;
+
+            if (durableAttribute == null && transientAttribute == null)
+                continue;
+
+            var ifaces = consumer.GetInterfaces()
+                .Where(y => y.IsGenericType && y.GetGenericTypeDefinition() == typeof(IConsumer<>)).ToList();
+
+            if (ifaces.Count > 1) ifaces.ToArray();
+
+            var map = new Dictionary<Type, MethodInfo>();
+
+            foreach (var iface in ifaces)
             {
-                var durableAttribute = consumer.GetCustomAttribute<DurableConsumerAttribute>();
-                var transientAttribute = consumer.GetCustomAttribute<TransientConsumerAttribute>();
+                var msgType = iface.GetGenericArguments()[0];
 
-                if (durableAttribute != null && transientAttribute != null)
-                    continue;
+                var method = consumer.GetMethod(nameof(IConsumer<object>.ConsumeAsync),
+                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy,
+                    [msgType, typeof(CancellationToken)]);
 
-                if (durableAttribute == null && transientAttribute == null)
-                    continue;
-
-                var ifaces = consumer.GetInterfaces()
-                    .Where(y => y.IsGenericType && y.GetGenericTypeDefinition() == typeof(IConsumer<>)).ToList();
-
-                if (ifaces.Count > 1) ifaces.ToArray();
-
-                var map = new Dictionary<Type, MethodInfo>();
-
-                foreach (var iface in ifaces)
-                {
-                    var msgType = iface.GetGenericArguments()[0];
-
-                    var method = consumer.GetMethod(nameof(IConsumer<object>.ConsumeAsync),
-                        BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy,
-                        [msgType, typeof(CancellationToken)]);
-
-                    map.Add(msgType, method!);
-                }
-
-                var obsolete = consumer.GetCustomAttribute<ObsoleteAttribute>() != null;
-
-                if (!obsolete)
-                    services.Add(new ServiceDescriptor(consumer, consumer, ServiceLifetime.Scoped));
-
-                Consumers.Add(new ConsumerRegistration
-                {
-                    IsDurable = durableAttribute != null,
-                    Durable = durableAttribute,
-                    Name = applyPrefix(durableAttribute?.Name ?? string.Empty)!,
-                    Subjects = map.Select(x => applyPrefix(options.ResolveSubject(x.Key))!).ToArray(),
-                    Stream = applyPrefix(durableAttribute?.Stream ?? options.DefaultStream)!,
-                    QueueGroup = applyPrefix(transientAttribute?.QueueGroup),
-                    Consumer = consumer,
-                    Obsolete = obsolete,
-                    Methods = map.ToFrozenDictionary(x => applyPrefix(options.ResolveSubject(x.Key))!,
-                        x => (x.Value, x.Key))
-                });
+                map.Add(msgType, method!);
             }
+
+            var obsolete = consumer.GetCustomAttribute<ObsoleteAttribute>() != null;
+
+            if (!obsolete)
+                services.Add(new ServiceDescriptor(consumer, consumer, ServiceLifetime.Scoped));
+
+            Consumers.Add(new ConsumerRegistration
+            {
+                IsDurable = durableAttribute != null,
+                Durable = durableAttribute,
+                Name = applyPrefix(durableAttribute?.Name ?? string.Empty)!,
+                Subjects = map.Select(x => applyPrefix(options.ResolveSubject(x.Key))!).ToArray(),
+                Stream = applyPrefix(durableAttribute?.Stream ?? options.DefaultStream)!,
+                QueueGroup = applyPrefix(transientAttribute?.QueueGroup),
+                Consumer = consumer,
+                Obsolete = obsolete,
+                Methods = map.ToFrozenDictionary(x => applyPrefix(options.ResolveSubject(x.Key))!,
+                    x => (x.Value, x.Key))
+            });
         }
 
         return services;

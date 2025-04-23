@@ -44,7 +44,8 @@ public class ServiceMeshOptions
     public ServiceInterfaceMode InterfaceMode { get; set; } = ServiceInterfaceMode.Auto;
 
     /// <summary>
-    ///   When enabled, does not register consumers
+    ///   When enabled, does not register services consumers with nats.
+    ///   Can only use remote services but not provide them.
     /// </summary>
     public bool DeveloperMode { get; set; }
 
