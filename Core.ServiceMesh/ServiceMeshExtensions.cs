@@ -90,7 +90,7 @@ public static class ServiceMeshExtensions
                 services.Add(new ServiceDescriptor(type, type, ServiceLifetime.Scoped));
             }
 
-        if (options.InterfaceMode != ServiceInterfaceMode.None && !options.DeveloperMode)
+        if (options.InterfaceMode != ServiceInterfaceMode.None)
             foreach (var serviceInterface in interfaces)
             {
                 var impl = Services.FirstOrDefault(x => x.InterfaceType == serviceInterface);

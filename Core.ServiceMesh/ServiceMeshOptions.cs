@@ -44,7 +44,7 @@ public class ServiceMeshOptions
     public ServiceInterfaceMode InterfaceMode { get; set; } = ServiceInterfaceMode.Auto;
 
     /// <summary>
-    ///   When enabled does not register local services or consumers.
+    ///   When enabled, does not register consumers
     /// </summary>
     public bool DeveloperMode { get; set; }
 

@@ -486,7 +486,7 @@ internal class ServiceMeshWorker(
                 await using var scope = serviceProvider.CreateAsyncScope();
                 var instance = scope.ServiceProvider.GetRequiredService(reg.ImplementationType);
 
-                if (method.ReturnType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
+                if (method.ReturnType.IsGenericTypeDefinition && method.ReturnType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
                 {
                     var subId = msg.Headers!["return-sub-id"].FirstOrDefault();
 
@@ -526,7 +526,7 @@ internal class ServiceMeshWorker(
                         dynamic awaitable = method.Invoke(instance, args.ToArray())!;
                         await awaitable;
 
-                        if (method.ReturnType == typeof(Task))
+                        if (method.ReturnType == typeof(Task) || method.ReturnType == typeof(ValueTask))
                         {
                             await msg.ReplyAsync<byte[]>([]);
                             activity?.SetStatus(ActivityStatusCode.Ok);
