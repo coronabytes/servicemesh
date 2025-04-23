@@ -44,6 +44,11 @@ public class ServiceMeshOptions
     public ServiceInterfaceMode InterfaceMode { get; set; } = ServiceInterfaceMode.Auto;
 
     /// <summary>
+    ///   When enabled does not register local services or consumers.
+    /// </summary>
+    public bool DeveloperMode { get; set; }
+
+    /// <summary>
     ///     Assemblies to scan for services and consumers
     ///     default: Assembly.GetEntryAssembly()
     /// </summary>
