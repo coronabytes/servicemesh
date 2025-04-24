@@ -489,7 +489,7 @@ internal class ServiceMeshWorker(
                 await using var scope = serviceProvider.CreateAsyncScope();
                 var instance = scope.ServiceProvider.GetRequiredService(reg.ImplementationType);
 
-                if (method.ReturnType.IsGenericTypeDefinition && method.ReturnType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
+                if (method.ReturnType.IsGenericType && method.ReturnType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
                 {
                     var subId = msg.Headers!["return-sub-id"].FirstOrDefault();
 
