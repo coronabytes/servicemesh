@@ -117,7 +117,7 @@ internal class ServiceMeshWorker(
         var res = await nats.RequestAsync<byte[], byte[]>(subject,
             body, replyOpts: new NatsSubOpts
             {
-                Timeout = TimeSpan.FromSeconds(30)
+                //Timeout = TimeSpan.FromSeconds(30)
             }, headers: headers);
 
         res.EnsureSuccess();
@@ -157,7 +157,7 @@ internal class ServiceMeshWorker(
         var res = await nats.RequestAsync<byte[], byte[]>(subject,
             body, replyOpts: new NatsSubOpts
             {
-                Timeout = TimeSpan.FromSeconds(30)
+                //Timeout = TimeSpan.FromSeconds(30)
             }, headers: headers);
 
         res.EnsureSuccess();
