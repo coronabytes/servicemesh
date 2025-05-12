@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Authors>Andreas Dominik Jung</Authors>
+    <Copyright>Andreas Dominik Jung</Copyright>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>Core.ServiceMesh.Minio</PackageId>
+    <PackageTags>service-mesh nats minio</PackageTags>
+    <PackageReleaseNotes></PackageReleaseNotes>
+    <Description>nats servicemesh blob references via minio</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Version>1.0.0</Version>
+    <PackageProjectUrl>https://github.com/coronabytes/servicemesh</PackageProjectUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <RepositoryUrl>https://github.com/coronabytes/servicemesh.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Minio" Version="6.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core.ServiceMesh.Abstractions\Core.ServiceMesh.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

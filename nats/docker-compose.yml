@@ -6,8 +6,22 @@ services:
       - "4222:4222"
       - "8222:8222"
     volumes:
-      - data:/data
+      - nats:/data
     command: "-js --sd /data"
     
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    volumes:
+      - minio:/data
+    ports:
+      - 4223:9000
+      - 4224:9001
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: x9ZotJrg5euEp976rG
+    command: server --console-address ":9001" /data
+    
 volumes:
-  data:
+  nats:
+  minio:

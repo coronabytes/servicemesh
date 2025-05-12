@@ -1,3 +1,4 @@
+using System.Text;
 using Core.ServiceMesh.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 using SampleInterfaces;
@@ -12,6 +13,16 @@ public class DevController(IServiceMesh mesh, ISomeService someService) : Contro
     public async Task<IActionResult> Publish([FromQuery] string message)
     {
         await mesh.PublishAsync(new SomeCommand(message));
+        return Ok();
+    }
+
+    [HttpPost("blob")]
+    public async Task<IActionResult> PublishBlob()
+    {
+        await using var ms = new MemoryStream("hello world"u8.ToArray());
+        var blob = await mesh.UploadBlobAsync(ms, "text/plain", TimeSpan.FromDays(3));
+
+        await mesh.PublishAsync(new IndexBlobCommand(blob));
         return Ok();
     }
 

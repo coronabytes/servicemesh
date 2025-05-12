@@ -24,6 +24,7 @@ internal class ServiceMeshWorker(
     private Channel<(NatsMsg<byte[]>, ConsumerRegistration)>? _broadcastChannel;
     private Channel<(NatsMsg<byte[]>, ServiceRegistration)>? _serviceChannel;
     private Channel<(NatsJSMsg<byte[]>, ConsumerRegistration)>? _streamChannel;
+    private IBlobProvider? _blobStorage = serviceProvider.GetService<IBlobProvider>();
 
     public T CreateProxy<T>() where T : class
     {
@@ -199,6 +200,23 @@ internal class ServiceMeshWorker(
                 yield break;
             yield return (T)options.Deserialize(msg.Data!, typeof(T), true)!;
         }
+    }
+
+    public ValueTask<BlobRef> UploadBlobAsync(Stream readStream, string contentType, TimeSpan? expire,
+        CancellationToken cancellationToken = default)
+    {
+        if (_blobStorage == null)
+            throw new InvalidOperationException("blob storage not configured");
+
+        return _blobStorage.UploadBlobAsync(readStream, contentType, expire, cancellationToken);
+    }
+
+    public ValueTask DownloadBlobAsync(BlobRef blob, Stream writeStream, CancellationToken cancellationToken = default)
+    {
+        if (_blobStorage == null)
+            throw new InvalidOperationException("blob storage not configured");
+
+        return _blobStorage.DownloadBlobAsync(blob, writeStream, cancellationToken);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -627,5 +645,15 @@ internal class ServiceMeshWorker(
         if (options.Prefix != null)
             return $"{options.Prefix}-{a}";
         return a;
+    }
+
+    public ValueTask<BlobRef> UploadBlob(Stream readStream, TimeSpan? expire)
+    {
+        throw new NotImplementedException();
+    }
+
+    public ValueTask DownloadBlob(BlobRef blob, Stream writeStream)
+    {
+        throw new NotImplementedException();
     }
 }
