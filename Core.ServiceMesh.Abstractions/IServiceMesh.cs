@@ -20,9 +20,9 @@ public interface IServiceMesh
     /// </summary>
     ValueTask SendAsync(object message);
 
-    ValueTask<T> RequestAsync<T>(string subject, object[] args, Type[] generics);
-    ValueTask RequestAsync(string subject, object[] args, Type[] generics);
-    IAsyncEnumerable<T> StreamAsync<T>(string subject, object[] args, Type[] generics);
+    ValueTask<T> RequestAsync<T>(string subject, object?[] args, Type[] generics);
+    ValueTask RequestAsync(string subject, object?[] args, Type[] generics);
+    IAsyncEnumerable<T> StreamAsync<T>(string subject, object?[] args, Type[] generics);
 
     ValueTask<BlobRef> UploadBlobAsync(Stream readStream, string contentType, TimeSpan? expire, CancellationToken cancellationToken = default);
     ValueTask DownloadBlobAsync(BlobRef blob, Stream writeStream, CancellationToken cancellationToken = default);

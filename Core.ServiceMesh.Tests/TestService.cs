@@ -21,4 +21,9 @@ public class TestService : ITestService
             yield return i;
         }
     }
+
+    public async ValueTask<List<Guid>> GetIds(Guid? id = null)
+    {
+        return [];
+    }
 }

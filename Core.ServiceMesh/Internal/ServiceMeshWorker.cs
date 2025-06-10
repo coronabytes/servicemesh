@@ -87,7 +87,7 @@ internal class ServiceMeshWorker(
         await nats.PublishAsync(subject, data, headers);
     }
 
-    public async ValueTask<T> RequestAsync<T>(string subject, object[] args, Type[] generics)
+    public async ValueTask<T> RequestAsync<T>(string subject, object?[] args, Type[] generics)
     {
         subject = ApplyPrefix(subject);
 
@@ -95,8 +95,8 @@ internal class ServiceMeshWorker(
         {
             //Service = attr.Name,
             //Method = info.Name,
-            Signature = args.Select(x => x.GetType().AssemblyQualifiedName!).ToList(),
-            Arguments = args.Select(x => options.Serialize(x, false)).ToList(),
+            Signature = args.Select(x => x?.GetType().AssemblyQualifiedName).ToList(),
+            Arguments = args.Select(x => x != null ? options.Serialize(x, false) : null).ToList(),
             Generics = generics.Select(x => x.AssemblyQualifiedName!).ToList()
         };
 
@@ -126,7 +126,7 @@ internal class ServiceMeshWorker(
         return (T)options.Deserialize(res.Data!, typeof(T), true)!;
     }
 
-    public async ValueTask RequestAsync(string subject, object[] args, Type[] generics)
+    public async ValueTask RequestAsync(string subject, object?[] args, Type[] generics)
     {
         subject = ApplyPrefix(subject);
 
@@ -134,8 +134,8 @@ internal class ServiceMeshWorker(
         {
             //Service = attr.Name,
             //Method = info.Name,
-            Signature = args.Select(x => x.GetType().AssemblyQualifiedName!).ToList(),
-            Arguments = args.Select(x => options.Serialize(x, false)).ToList(),
+            Signature = args.Select(x => x?.GetType().AssemblyQualifiedName).ToList(),
+            Arguments = args.Select(x => x != null ? options.Serialize(x, false) : null).ToList(),
             Generics = generics.Select(x => x.AssemblyQualifiedName!).ToList()
         };
 
@@ -164,7 +164,7 @@ internal class ServiceMeshWorker(
         res.EnsureSuccess();
     }
 
-    public async IAsyncEnumerable<T> StreamAsync<T>(string subject, object[] args, Type[] generics)
+    public async IAsyncEnumerable<T> StreamAsync<T>(string subject, object?[] args, Type[] generics)
     {
         subject = ApplyPrefix(subject);
 
@@ -172,8 +172,8 @@ internal class ServiceMeshWorker(
         {
             //Service = attr.Name,
             //Method = info.Name,
-            Signature = args.Select(x => x.GetType().AssemblyQualifiedName!).ToList(),
-            Arguments = args.Select(x => options.Serialize(x, false)).ToList(),
+            Signature = args.Select(x => x?.GetType().AssemblyQualifiedName).ToList(),
+            Arguments = args.Select(x => x != null ? options.Serialize(x, false) : null).ToList(),
             Generics = generics.Select(x => x.AssemblyQualifiedName!).ToList()
         };
 
@@ -491,17 +491,19 @@ internal class ServiceMeshWorker(
             else
             {
                 var invocation = (ServiceInvocation)options.Deserialize(msg.Data!, typeof(ServiceInvocation), true)!;
-                var signatures = invocation.Signature.Select(options.ResolveType).ToArray();
+                var signatures = invocation.Signature.Select(x=> x == null ? null : options.ResolveType(x)).ToArray();
 
                 if (activity != null)
                     activity.DisplayName = $"SUB {msg.Subject}";
 
-                var args = new object[signatures.Length];
+                var args = new object?[signatures.Length];
 
                 for (var i = 0; i < signatures.Length; i++)
                 {
                     var sig = signatures[i]!;
-                    args[i] = options.Deserialize(invocation.Arguments[i], sig, false)!;
+                    
+                    if (sig != null)
+                        args[i] = options.Deserialize(invocation.Arguments[i], sig, false)!;
                 }
 
                 await using var scope = serviceProvider.CreateAsyncScope();
@@ -533,7 +535,7 @@ internal class ServiceMeshWorker(
 
                         await nats.PublishAsync<byte[]>(subId!, [], headers);
                         activity?.SetStatus(ActivityStatusCode.Error);
-                        activity?.RecordException(ex);
+                        activity?.AddException(ex);
                     }
                 }
                 else
@@ -568,7 +570,7 @@ internal class ServiceMeshWorker(
 
                         await msg.ReplyAsync<byte[]>([], headers);
                         activity?.SetStatus(ActivityStatusCode.Error);
-                        activity?.RecordException(ex);
+                        activity?.AddException(ex);
                     }
                 }
             }
@@ -634,7 +636,7 @@ internal class ServiceMeshWorker(
             {
                 await msg.NakAsync(cancellationToken: stoppingToken);
                 activity?.SetStatus(ActivityStatusCode.Error);
-                activity?.RecordException(ex);
+                activity?.AddException(ex);
                 logger.LogError(ex, null);
             }
         }

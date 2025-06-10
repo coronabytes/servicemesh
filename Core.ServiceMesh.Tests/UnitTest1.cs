@@ -102,4 +102,14 @@ public class UnitTest1(ITestOutputHelper logger) : IAsyncLifetime
 
         Assert.True(res);
     }
+
+    [Fact]
+    public async Task IdTest()
+    {
+        var someService = _mesh!.CreateProxy<ITestService>();
+
+        var list = await someService.GetIds();
+
+        Assert.Empty(list);
+    }
 }
