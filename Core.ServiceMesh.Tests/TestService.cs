@@ -22,8 +22,8 @@ public class TestService : ITestService
         }
     }
 
-    public async ValueTask<List<Guid>> GetIds(Guid? id = null)
+    public ValueTask<List<Guid>> GetIds(Guid? id = null)
     {
-        return [];
+        return ValueTask.FromResult<List<Guid>>([]);
     }
 }

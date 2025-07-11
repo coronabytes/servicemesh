@@ -337,8 +337,9 @@ internal class ServiceMeshWorker(
                     MaxAckPending = durableConsumer.Durable!.MaxAckPending,
                     AckWait = TimeSpan.FromSeconds(durableConsumer.Durable!.AckWait),
                     FilterSubjects = durableConsumer.Subjects,
-                    // TODO: check if seconds or nanoseconds
-                    Backoff = durableConsumer.Durable!.Backoff.Any() ? durableConsumer.Durable!.Backoff : null,
+                    Backoff = durableConsumer.Durable!.Backoff.Any() ? 
+                        durableConsumer.Durable!.Backoff.Select(TimeSpan.FromSeconds).ToArray() 
+                        : null,
                     DeliverPolicy = durableConsumer.Durable!.DeliverPolicy switch
                     {
                         DeliverPolicy.All => ConsumerConfigDeliverPolicy.All,
@@ -421,7 +422,7 @@ internal class ServiceMeshWorker(
             var parentContext = Propagators.DefaultTextMapPropagator.Extract(default, msg.Headers, (headers, key) =>
             {
                 if (headers!.TryGetValue(key, out var value))
-                    return [value[0]];
+                    return [value[0]!];
 
                 return Array.Empty<string>();
             });
@@ -455,7 +456,7 @@ internal class ServiceMeshWorker(
             {
                 logger.LogError(ex, null);
                 activity?.SetStatus(ActivityStatusCode.Error);
-                activity?.RecordException(ex);
+                activity?.AddException(ex);
             }
         }
     }
@@ -469,7 +470,7 @@ internal class ServiceMeshWorker(
             var parentContext = Propagators.DefaultTextMapPropagator.Extract(default, msg.Headers, (headers, key) =>
             {
                 if (headers!.TryGetValue(key, out var value))
-                    return [value[0]];
+                    return [value[0]!];
 
                 return Array.Empty<string>();
             });
@@ -502,8 +503,8 @@ internal class ServiceMeshWorker(
                 {
                     var sig = signatures[i]!;
                     
-                    if (sig != null)
-                        args[i] = options.Deserialize(invocation.Arguments[i], sig, false)!;
+                    if (sig != null!)
+                        args[i] = options.Deserialize(invocation.Arguments[i]!, sig, false)!;
                 }
 
                 await using var scope = serviceProvider.CreateAsyncScope();
@@ -597,7 +598,7 @@ internal class ServiceMeshWorker(
             var parentContext = Propagators.DefaultTextMapPropagator.Extract(default, msg.Headers, (headers, key) =>
             {
                 if (headers!.TryGetValue(key, out var value))
-                    return [value[0]];
+                    return [value[0]!];
 
                 return Array.Empty<string>();
             });
