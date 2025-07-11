@@ -9,9 +9,9 @@
 
   <ItemGroup>
     <PackageReference Include="Core.Observability" Version="1.1.1" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.3" />
-    <PackageReference Include="Minio" Version="6.0.4" />
-    <PackageReference Include="Scalar.AspNetCore" Version="2.1.5" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.7" />
+    <PackageReference Include="Minio" Version="6.0.5" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.6.0" />
   </ItemGroup>
 
   <ItemGroup>
