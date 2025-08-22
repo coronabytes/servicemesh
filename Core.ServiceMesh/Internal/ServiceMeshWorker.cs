@@ -123,6 +123,9 @@ internal class ServiceMeshWorker(
 
         res.EnsureSuccess();
 
+        if (res.Headers != null && res.Headers.TryGetLastValue("exception", out var error))
+            throw new Exception(error);
+
         return (T)options.Deserialize(res.Data!, typeof(T), true)!;
     }
 
@@ -161,6 +164,9 @@ internal class ServiceMeshWorker(
                 //Timeout = TimeSpan.FromSeconds(30)
             }, headers: headers);
 
+        if (res.Headers != null && res.Headers.TryGetLastValue("exception", out var error))
+            throw new Exception(error);
+
         res.EnsureSuccess();
     }
 
@@ -196,6 +202,11 @@ internal class ServiceMeshWorker(
 
         await foreach (var msg in nats.SubscribeAsync<byte[]>(subId))
         {
+            msg.EnsureSuccess();
+
+            if (msg.Headers != null && msg.Headers.TryGetLastValue("exception", out var error))
+                throw new Exception(error);
+
             if (msg.Data == null)
                 yield break;
             yield return (T)options.Deserialize(msg.Data!, typeof(T), true)!;

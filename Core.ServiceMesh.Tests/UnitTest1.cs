@@ -64,6 +64,17 @@ public class UnitTest1(ITestOutputHelper logger) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GenericAddIntError()
+    {
+        var someService = _mesh!.CreateProxy<ITestService>();
+
+        await Assert.ThrowsAsync<Exception>(async () =>
+        {
+            await someService.GenericAddError(2, 4);
+        });
+    }
+
+    [Fact]
     public async Task GenericAddDecimal()
     {
         var someService = _mesh!.CreateProxy<ITestService>();

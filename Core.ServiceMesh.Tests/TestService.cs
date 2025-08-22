@@ -13,6 +13,11 @@ public class TestService : ITestService
         return a + b;
     }
 
+    public async ValueTask<T> GenericAddError<T>(T a, T b) where T : INumber<T>
+    {
+        throw new Exception("test");
+    }
+
     public async IAsyncEnumerable<int> StreamingResponse(int count)
     {
         for (int i = 0; i < count; i++)
