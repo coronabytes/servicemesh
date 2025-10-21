@@ -290,6 +290,8 @@ internal class ServiceMeshWorker(
                     || newcfg.AllowRollupHdrs != oldcfg.AllowRollupHdrs
                     || newcfg.Republish != oldcfg.Republish
                     || newcfg.Compression != oldcfg.Compression
+                    || newcfg.AllowMsgSchedules != oldcfg.AllowMsgSchedules
+                    || newcfg.AllowAtomicPublish != oldcfg.AllowAtomicPublish
                    )
                     await _jetStream.UpdateStreamAsync(newcfg, stoppingToken);
             }
