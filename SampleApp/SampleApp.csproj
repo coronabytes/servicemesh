@@ -8,10 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Core.Observability" Version="1.1.2" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0-rc.2.25502.107" />
-    <PackageReference Include="Minio" Version="6.0.5" />
-    <PackageReference Include="Scalar.AspNetCore" Version="2.9.0" />
+    <PackageReference Include="Core.Observability" Version="1.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <PackageReference Include="Minio" Version="7.0.0" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.10.3" />
   </ItemGroup>
 
   <ItemGroup>

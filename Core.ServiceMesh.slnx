@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/Samples/">
+    <Project Path="SampleApp/SampleApp.csproj" />
+    <Project Path="SampleInterfaces/SampleInterfaces.csproj" />
+    <Project Path="SampleWorker/SampleWorker.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="Core.ServiceMesh.SourceGen.Tests/Core.ServiceMesh.SourceGen.Tests.csproj" />
+    <Project Path="Core.ServiceMesh.Tests/Core.ServiceMesh.Tests.csproj" />
+  </Folder>
+  <Project Path="Core.ServiceMesh.Abstractions/Core.ServiceMesh.Abstractions.csproj" />
+  <Project Path="Core.ServiceMesh.Minio/Core.ServiceMesh.Minio.csproj" />
+  <Project Path="Core.ServiceMesh.SourceGen/Core.ServiceMesh.SourceGen.csproj" />
+  <Project Path="Core.ServiceMesh/Core.ServiceMesh.csproj" />
+</Solution>
