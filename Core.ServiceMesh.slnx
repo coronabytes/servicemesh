@@ -5,6 +5,7 @@
     <Project Path="SampleWorker/SampleWorker.csproj" />
   </Folder>
   <Folder Name="/Tests/">
+    <Project Path="Core.ServiceMesh.CLI/Core.ServiceMesh.CLI.csproj" Id="53a283f5-cee3-48dd-9acd-5c9cc2acea45" />
     <Project Path="Core.ServiceMesh.SourceGen.Tests/Core.ServiceMesh.SourceGen.Tests.csproj" />
     <Project Path="Core.ServiceMesh.Tests/Core.ServiceMesh.Tests.csproj" />
   </Folder>

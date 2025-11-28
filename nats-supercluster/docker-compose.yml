@@ -1,0 +1,53 @@
+services:
+    
+  nats-a:
+    image: nats:alpine
+    restart: unless-stopped
+    #network_mode: "bridge"
+    ports:
+      - 4222:4222
+    volumes:
+      - nats-a:/data
+      - ./a.conf:/core.conf:ro
+    command: "-c /core.conf"
+    
+    
+  nats-b:
+    image: nats:alpine
+    restart: unless-stopped
+    #network_mode: "bridge"
+    ports:
+      - 4223:4223
+    volumes:
+      - nats-b:/data
+      - ./b.conf:/core.conf:ro
+    command: "-c /core.conf"
+    
+  nats-c:
+    image: nats:alpine
+    restart: unless-stopped
+    #network_mode: "bridge"
+    ports:
+      - 4224:4224
+    volumes:
+      - nats-c:/data
+      - ./c.conf:/core.conf:ro
+    command: "-c /core.conf"
+    
+    
+  nats-d:
+    image: nats:alpine
+    restart: unless-stopped
+    #network_mode: "bridge"
+    ports:
+      - 4225:4225
+    volumes:
+      - nats-d:/data
+      - ./d.conf:/core.conf:ro
+    command: "-c /core.conf"   
+
+volumes:
+  nats-a:
+  nats-b:
+  nats-c:
+  nats-d:
