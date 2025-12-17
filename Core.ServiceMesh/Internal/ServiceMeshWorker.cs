@@ -351,7 +351,7 @@ internal class ServiceMeshWorker(
                     AckWait = TimeSpan.FromSeconds(durableConsumer.Durable!.AckWait),
                     FilterSubjects = durableConsumer.Subjects,
                     Backoff = durableConsumer.Durable!.Backoff.Any() ? 
-                        durableConsumer.Durable!.Backoff.Select(TimeSpan.FromSeconds).ToArray() 
+                        durableConsumer.Durable!.Backoff.Select(x => TimeSpan.FromSeconds(x)).ToArray() 
                         : null,
                     DeliverPolicy = durableConsumer.Durable!.DeliverPolicy switch
                     {
