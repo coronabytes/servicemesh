@@ -23,7 +23,7 @@ internal class ServiceMeshWorker(
     private readonly NatsJSContext _jetStream = new(nats);
     private Channel<(NatsMsg<byte[]>, ConsumerRegistration)>? _broadcastChannel;
     private Channel<(NatsMsg<byte[]>, ServiceRegistration)>? _serviceChannel;
-    private Channel<(NatsJSMsg<byte[]>, ConsumerRegistration)>? _streamChannel;
+    private Channel<(INatsJSMsg<byte[]>, ConsumerRegistration)>? _streamChannel;
     private IBlobProvider? _blobStorage = serviceProvider.GetService<IBlobProvider>();
 
     public T CreateProxy<T>() where T : class
@@ -235,7 +235,7 @@ internal class ServiceMeshWorker(
         if (options.DeveloperMode)
             return;
 
-        _streamChannel = Channel.CreateBounded<(NatsJSMsg<byte[]>, ConsumerRegistration)>(10);
+        _streamChannel = Channel.CreateBounded<(INatsJSMsg<byte[]>, ConsumerRegistration)>(10);
         _broadcastChannel = Channel.CreateBounded<(NatsMsg<byte[]>, ConsumerRegistration)>(10);
         _serviceChannel = Channel.CreateBounded<(NatsMsg<byte[]>, ServiceRegistration)>(10);
 
